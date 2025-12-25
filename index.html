@@ -333,6 +333,40 @@
         .shake {
             animation: shake 0.2s ease-in-out 0s 2;
         }
+
+        /* --- Custom Tooltips --- */
+        [data-title] {
+            position: relative;
+        }
+
+        [data-title]::after {
+            content: attr(data-title);
+            position: absolute;
+            top: 120%;
+            left: 50%;
+            transform: translateX(-50%) translateY(4px);
+            background: #1e1e1e;
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            padding: 6px 10px;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            z-index: 100;
+            border-radius: 6px;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            pointer-events: none;
+            font-family: 'Inter', sans-serif;
+            font-weight: 500;
+        }
+
+        [data-title]:hover::after {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(-50%) translateY(0);
+        }
     </style>
 </head>
 
@@ -346,14 +380,14 @@
         </div>
 
         <div class="flex items-center gap-6">
-            <i id="newBtn" class="fas fa-plus btn-icon" title="Start from Scratch"></i>
-            <i id="previewToggle" class="fas fa-eye btn-icon" title="Toggle Preview (Markdown)"></i>
-            <i id="lockBtn" class="fas fa-unlock btn-icon" title="Symmetric Password Encryption"></i>
-            <i id="shareBtn" class="fas fa-share-nodes btn-icon" title="Copy Share Link"></i>
-            <i id="themeToggle" class="fas fa-sun btn-icon" title="Toggle Dark Mode"></i>
-            <i id="downloadBtn" class="fas fa-download btn-icon" title="Download .md"></i>
-            <i id="copyBtn" class="fas fa-copy btn-icon" title="Copy Raw Text"></i>
-            <i id="clearBtn" class="fas fa-trash-alt btn-icon text-red-400" title="Clear All"></i>
+            <i id="newBtn" class="fas fa-plus btn-icon" data-title="Start from Scratch"></i>
+            <i id="previewToggle" class="fas fa-eye btn-icon" data-title="Toggle Preview (Markdown)"></i>
+            <i id="lockBtn" class="fas fa-unlock btn-icon" data-title="Symmetric Password Encryption"></i>
+            <i id="shareBtn" class="fas fa-share-nodes btn-icon" data-title="Copy Share Link"></i>
+            <i id="themeToggle" class="fas fa-sun btn-icon" data-title="Toggle Dark Mode"></i>
+            <i id="downloadBtn" class="fas fa-download btn-icon" data-title="Download .md"></i>
+            <i id="copyBtn" class="fas fa-copy btn-icon" data-title="Copy Raw Text"></i>
+            <i id="clearBtn" class="fas fa-trash-alt btn-icon text-red-400" data-title="Clear All"></i>
         </div>
     </header>
 
@@ -431,6 +465,20 @@
         </div>
     </div>
 
+    <!-- Confirm Modal -->
+    <div id="confirmModal" class="fixed inset-0 modal-overlay z-50 flex items-center justify-center hidden">
+        <div class="bg-[#1e1e1e] p-8 rounded-xl w-full max-w-sm border border-gray-800 shadow-2xl text-center">
+            <h3 id="confirmTitle" class="text-lg font-bold mb-4 text-white">Are you sure?</h3>
+            <p id="confirmDesc" class="text-gray-400 text-sm mb-6">This action cannot be undone.</p>
+            <div class="flex justify-center gap-3">
+                <button id="confirmCancel" class="px-4 py-2 text-gray-400 hover:text-white transition">No,
+                    Cancel</button>
+                <button id="confirmYes" class="px-6 py-2 bg-red-600 text-white rounded hover:bg-red-500 transition">Yes,
+                    I'm Sure</button>
+            </div>
+        </div>
+    </div>
+
     <div id="saveIndicator" class="fixed bottom-6 right-10 meta-bar opacity-0 transition-opacity duration-500">
         URL UPDATED
     </div>
@@ -487,6 +535,34 @@
         const renameInput = document.getElementById('renameInput');
         const renameSubmit = document.getElementById('renameSubmit');
         const renameCancel = document.getElementById('renameCancel');
+
+        // Confirm Modal
+        const confirmModal = document.getElementById('confirmModal');
+        const confirmTitle = document.getElementById('confirmTitle');
+        const confirmDesc = document.getElementById('confirmDesc');
+        const confirmYes = document.getElementById('confirmYes');
+        const confirmCancel = document.getElementById('confirmCancel');
+
+        let confirmCallback = null;
+
+        function showConfirm(title, desc, callback) {
+            confirmTitle.innerText = title;
+            confirmDesc.innerText = desc;
+            confirmCallback = callback;
+            confirmModal.classList.remove('hidden');
+            isModalOpen = true;
+        }
+
+        confirmYes.onclick = () => {
+            if (confirmCallback) confirmCallback();
+            confirmModal.classList.add('hidden');
+            isModalOpen = false;
+        };
+
+        confirmCancel.onclick = () => {
+            confirmModal.classList.add('hidden');
+            isModalOpen = false;
+        };
 
         // --- Tab Logic ---
         function generateId() {
@@ -568,13 +644,12 @@
 
             if (appState.tabs.length <= 1) {
                 // If last tab, just clear it or ask to reset?
-                // Let's just clear content and rename to Untitled
-                if (confirm("Close the last tab? This will clear its content.")) {
+                showConfirm("Close last tab?", "This will clear all content in this note.", () => {
                     appState.tabs[0].content = "";
                     appState.tabs[0].title = "Untitled";
                     activateTab(appState.tabs[0].id);
                     performSave();
-                }
+                });
                 return;
             }
 
@@ -582,10 +657,20 @@
             const index = appState.tabs.findIndex(t => t.id === id);
             const isActive = (id === appState.activeTabId);
 
-            appState.tabs.splice(index, 1);
+            // For simple closing of non-last tab, maybe minimal confirm or no confirm? 
+            // Stick to safe UX:
+            if (appState.tabs[index].content.trim().length > 0) {
+                showConfirm("Close Tab?", "Are you sure you want to close this tab?", () => {
+                    actuallyCloseTab(index, isActive);
+                });
+            } else {
+                actuallyCloseTab(index, isActive);
+            }
+        }
 
+        function actuallyCloseTab(index, isActive) {
+            appState.tabs.splice(index, 1);
             if (isActive) {
-                // Switch to previous, or next, or 0
                 const newIndex = Math.max(0, index - 1);
                 activateTab(appState.tabs[newIndex].id);
             } else {
@@ -873,7 +958,7 @@
 
         // Controls
         newBtn.addEventListener('click', () => {
-            if (confirm("Close notebook and start fresh everywhere?")) {
+            showConfirm("Start Fresh?", "This will clear all tabs and reset the notebook.", () => {
                 appState = { tabs: [], activeTabId: null };
                 encryptionKey = null;
                 lockBtn.classList.replace('fa-lock', 'fa-unlock');
@@ -881,18 +966,18 @@
                 window.location.hash = '';
 
                 loadFromContent(""); // Reset to one blank tab
-            }
+            });
         });
 
         lockBtn.addEventListener('click', () => {
             if (encryptionKey) {
                 // If locking while locked? No, unlock means remove encryption
-                if (confirm("Remove encryption? This will make the URL readable.")) {
+                showConfirm("Remove Encryption?", "This will make your URL readable by anyone with the link.", () => {
                     encryptionKey = null;
                     lockBtn.classList.replace('fa-lock', 'fa-unlock');
                     encryptionBadge.classList.add('hidden');
                     performSave();
-                }
+                });
             } else {
                 showModal("Encrypt Notebook", "Secure all tabs with a password URL.", (pass) => {
                     if (pass) {
@@ -937,11 +1022,11 @@
         });
 
         clearBtn.addEventListener('click', () => {
-            if (confirm("Clear text in current tab?")) {
+            showConfirm("Clear Text?", "This will delete all text in the current tab.", () => {
                 editor.value = '';
                 updateCounts();
                 performSave();
-            }
+            });
         });
 
         downloadBtn.addEventListener('click', () => {
