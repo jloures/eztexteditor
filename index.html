@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Markdown Editor</title>
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500&display=swap');
+
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #1a1a1a;
+            --meta-color: #888888;
+            --accent-color: #3b82f6;
+            --border-color: #e5e7eb;
+        }
+
+        [data-theme='dark'] {
+            --bg-color: #121212;
+            --text-color: #e0e0e0;
+            --meta-color: #666666;
+            --border-color: #2d2d2d;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        /* Layout & Sidebar */
+        main {
+            display: flex;
+            height: calc(100vh - 85px);
+            /* Adjusted for header */
+            width: 100vw;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 260px;
+            background: var(--bg-color);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            transition: width 0.3s ease;
+        }
+
+        .sidebar-header {
+            padding: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.75rem;
+            color: var(--meta-color);
+            letter-spacing: 0.1em;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .tab-list {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding-bottom: 20px;
+        }
+
+        .tab-list::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .tab-list::-webkit-scrollbar-thumb {
+            background: transparent;
+        }
+
+        .tab-list:hover::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+        }
+
+        .tab {
+            width: 100%;
+            padding: 10px 16px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            border-left: 3px solid transparent;
+            color: var(--meta-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+
+        .tab:hover {
+            background: rgba(128, 128, 128, 0.05);
+            color: var(--text-color);
+        }
+
+        .tab.active {
+            background: rgba(128, 128, 128, 0.08);
+            /* slightly visible bg */
+            color: var(--text-color);
+            border-left-color: var(--accent-color);
+            font-weight: 500;
+        }
+
+        .tab-icon {
+            font-size: 0.8em;
+            opacity: 0.7;
+        }
+
+        .tab-title {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .tab-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .tab:hover .tab-actions,
+        .tab.active .tab-actions {
+            opacity: 1;
+        }
+
+        .action-btn {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            font-size: 0.75em;
+            color: var(--meta-color);
+            transition: all 0.2s;
+        }
+
+        .action-btn:hover {
+            background: rgba(128, 128, 128, 0.1);
+            color: var(--text-color);
+        }
+
+        .action-btn.delete:hover {
+            background: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+        }
+
+        .sidebar-footer {
+            padding: 16px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .new-tab-btn {
+            width: 100%;
+            padding: 10px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background: rgba(128, 128, 128, 0.05);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .new-tab-btn:hover {
+            background: rgba(128, 128, 128, 0.1);
+            border-color: var(--meta-color);
+        }
+
+        /* --- Collapsed Sidebar State --- */
+        .sidebar.collapsed {
+            width: 60px;
+        }
+
+        .sidebar.collapsed .sidebar-title-text,
+        .sidebar.collapsed .tab-title,
+        .sidebar.collapsed .btn-text,
+        .sidebar.collapsed .tab-actions {
+            display: none !important;
+        }
+
+        .sidebar.collapsed .sidebar-header {
+            justify-content: center;
+            padding: 16px 0;
+        }
+
+        .sidebar.collapsed .tab {
+            justify-content: center;
+            padding: 10px 0;
+        }
+
+        /* Hide border/gap in collapsed mode to centering visually */
+        .sidebar.collapsed .tab {
+            border-left: none;
+        }
+
+        .sidebar.collapsed .tab.active {
+            background: rgba(128, 128, 128, 0.1);
+        }
+
+        .sidebar.collapsed .new-tab-btn {
+            justify-content: center;
+            padding: 10px 0;
+        }
+
+        .sidebar.collapsed #sidebarToggle {
+            margin: 0;
+        }
+
+        #editor-container {
+            flex: 1;
+            height: 100%;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Adjust editor padding for full width feel */
+        #editor,
+        #preview {
+            width: 100%;
+            height: 100%;
+            padding: 40px;
+            overflow-y: auto;
+        }
+
+        #editor {
+            resize: none;
+            border: none;
+            outline: none;
+            background: transparent;
+            color: inherit;
+            font-size: 1.1rem;
+            line-height: 1.6;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        #preview {
+            display: none;
+        }
+
+        .prose {
+            max-width: none;
+            color: inherit;
+        }
+
+        [data-theme='dark'] .prose {
+            --tw-prose-body: var(--text-color);
+            --tw-prose-headings: #fff;
+            --tw-prose-links: var(--accent-color);
+            --tw-prose-code: #f472b6;
+            --tw-prose-pre-bg: #1e1e1e;
+            --tw-prose-quotes: #9ca3af;
+        }
+
+        .meta-bar {
+            color: var(--meta-color);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+        }
+
+        .btn-icon {
+            cursor: pointer;
+            opacity: 0.6;
+            transition: all 0.2s;
+        }
+
+        .btn-icon:hover {
+            opacity: 1;
+        }
+
+        .btn-active {
+            color: var(--accent-color);
+            opacity: 1;
+        }
+
+        #editor::-webkit-scrollbar,
+        #preview::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        #editor::-webkit-scrollbar-thumb,
+        #preview::-webkit-scrollbar-thumb {
+            background: #eee;
+            border-radius: 10px;
+        }
+
+        [data-theme='dark'] #editor::-webkit-scrollbar-thumb,
+        [data-theme='dark'] #preview::-webkit-scrollbar-thumb {
+            background: #333;
+        }
+
+        .modal-overlay {
+            background: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(8px);
+        }
+
+        /* Shake animation for wrong password */
+        @keyframes shake {
+
+            0%,
+            100% {
+                transform: translateX(0);
+            }
+
+            25% {
+                transform: translateX(-8px);
+            }
+
+            75% {
+                transform: translateX(8px);
+            }
+        }
+
+        .shake {
+            animation: shake 0.2s ease-in-out 0s 2;
+        }
+    </style>
+</head>
+
+<body class="overflow-hidden" data-theme="dark">
+
+    <header class="flex justify-between items-center px-10 py-6 border-b border-[var(--border-color)] select-none">
+        <div class="flex items-center gap-6 meta-bar">
+            <div id="wordCount">0 WORDS</div>
+            <div id="encryptionBadge" class="hidden text-blue-400 font-bold">LOCKED</div>
+            <div id="modeBadge" class="text-xs px-2 py-0.5 rounded bg-gray-800 text-gray-300">EDIT</div>
+        </div>
+
+        <div class="flex items-center gap-6">
+            <i id="newBtn" class="fas fa-plus btn-icon" title="Start from Scratch"></i>
+            <i id="previewToggle" class="fas fa-eye btn-icon" title="Toggle Preview (Markdown)"></i>
+            <i id="lockBtn" class="fas fa-unlock btn-icon" title="Symmetric Password Encryption"></i>
+            <i id="shareBtn" class="fas fa-share-nodes btn-icon" title="Copy Share Link"></i>
+            <i id="themeToggle" class="fas fa-sun btn-icon" title="Toggle Dark Mode"></i>
+            <i id="downloadBtn" class="fas fa-download btn-icon" title="Download .md"></i>
+            <i id="copyBtn" class="fas fa-copy btn-icon" title="Copy Raw Text"></i>
+            <i id="clearBtn" class="fas fa-trash-alt btn-icon text-red-400" title="Clear All"></i>
+        </div>
+    </header>
+
+    <main>
+        <!-- Sidebar -->
+        <div id="sidebar" class="sidebar">
+            <div class="sidebar-header">
+                <span class="sidebar-title-text">NOTEBOOK</span>
+                <i id="sidebarToggle" class="fas fa-chevron-left btn-icon text-xs" title="Collapse Sidebar"></i>
+            </div>
+
+            <div id="tabBar" class="tab-list">
+                <!-- Tabs Injected Here -->
+            </div>
+
+            <div class="sidebar-footer">
+                <button id="addTabBtn" class="new-tab-btn" title="New Note">
+                    <i class="fas fa-plus"></i> <span class="btn-text">New Note</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Editor Area -->
+        <div id="editor-container">
+            <textarea id="editor" placeholder="Start typing..." spellcheck="false"></textarea>
+            <div id="preview" class="prose lg:prose-xl"></div>
+        </div>
+    </main>
+
+    <!-- Modals -->
+    <div id="passwordModal" class="fixed inset-0 modal-overlay z-50 flex items-center justify-center hidden">
+        <div id="modalContainer" class="bg-[#1e1e1e] p-8 rounded-xl w-full max-w-md border border-gray-800 shadow-2xl">
+            <h3 id="modalTitle" class="text-xl font-bold mb-4 text-white">Set Encryption Password</h3>
+            <p id="modalDesc" class="text-gray-400 text-sm mb-6">Enter a key to encrypt/decrypt this text.</p>
+            <input type="password" id="passwordInput"
+                class="w-full bg-black border border-gray-700 rounded p-3 mb-2 text-white outline-none focus:border-blue-500 transition-colors"
+                placeholder="Enter password...">
+            <p id="passwordError" class="text-red-500 text-xs mb-4 opacity-0">Incorrect password. Please try again.</p>
+            <div class="flex justify-end gap-3">
+                <button id="modalCancel" class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+                <button id="modalSubmit"
+                    class="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-500 transition">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Share Link Modal -->
+    <div id="shareModal" class="fixed inset-0 modal-overlay z-50 flex items-center justify-center hidden">
+        <div class="bg-[#1e1e1e] p-8 rounded-xl w-full max-w-lg border border-gray-800 shadow-2xl">
+            <h3 class="text-xl font-bold mb-4 text-white">Share Link</h3>
+            <p class="text-gray-400 text-sm mb-6">The URL contains your content. Copy it below:</p>
+            <textarea id="shareLinkArea" readonly
+                class="w-full bg-black border border-gray-700 rounded p-3 mb-6 text-blue-400 text-xs font-mono h-24 outline-none resize-none"></textarea>
+            <div class="flex justify-end gap-3">
+                <button id="shareClose" class="px-4 py-2 text-gray-400 hover:text-white transition">Close</button>
+                <button id="shareCopy"
+                    class="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-500 transition">Copy Link</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rename Modal -->
+    <div id="renameModal" class="fixed inset-0 modal-overlay z-50 flex items-center justify-center hidden">
+        <div class="bg-[#1e1e1e] p-8 rounded-xl w-full max-w-md border border-gray-800 shadow-2xl">
+            <h3 class="text-xl font-bold mb-4 text-white">Rename Note</h3>
+            <p class="text-gray-400 text-sm mb-6">Enter a new name for this note.</p>
+            <input type="text" id="renameInput"
+                class="w-full bg-black border border-gray-700 rounded p-3 mb-6 text-white outline-none focus:border-blue-500 transition-colors"
+                placeholder="Note Name...">
+            <div class="flex justify-end gap-3">
+                <button id="renameCancel" class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+                <button id="renameSubmit"
+                    class="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-500 transition">Save Name</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="saveIndicator" class="fixed bottom-6 right-10 meta-bar opacity-0 transition-opacity duration-500">
+        URL UPDATED
+    </div>
+
+    <script>
+        // --- State Management ---
+        let appState = {
+            tabs: [],
+            activeTabId: null
+        };
+
+        let encryptionKey = null;
+        let isPreviewMode = false;
+        let isModalOpen = false;
+        let saveTimeout;
+
+        // --- Elements ---
+        const editor = document.getElementById('editor');
+        const preview = document.getElementById('preview');
+        const tabBar = document.getElementById('tabBar');
+        const addTabBtn = document.getElementById('addTabBtn');
+
+        // Toolbar Elements
+        const previewToggle = document.getElementById('previewToggle');
+        const modeBadge = document.getElementById('modeBadge');
+        const wordCountDisplay = document.getElementById('wordCount');
+        const encryptionBadge = document.getElementById('encryptionBadge');
+        const themeToggle = document.getElementById('themeToggle');
+        const saveIndicator = document.getElementById('saveIndicator');
+        const clearBtn = document.getElementById('clearBtn');
+        const newBtn = document.getElementById('newBtn'); // "Start from Scratch" (Resets all)
+        const copyBtn = document.getElementById('copyBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const lockBtn = document.getElementById('lockBtn');
+        const shareBtn = document.getElementById('shareBtn');
+
+        // Modals
+        const passwordModal = document.getElementById('passwordModal');
+        const modalContainer = document.getElementById('modalContainer');
+        const passwordInput = document.getElementById('passwordInput');
+        const passwordError = document.getElementById('passwordError');
+        const modalSubmit = document.getElementById('modalSubmit');
+        const modalCancel = document.getElementById('modalCancel');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalDesc = document.getElementById('modalDesc');
+
+        const shareModal = document.getElementById('shareModal');
+        const shareLinkArea = document.getElementById('shareLinkArea');
+        const shareClose = document.getElementById('shareClose');
+        const shareCopy = document.getElementById('shareCopy');
+
+        // Rename Modal Elements
+        const renameModal = document.getElementById('renameModal');
+        const renameInput = document.getElementById('renameInput');
+        const renameSubmit = document.getElementById('renameSubmit');
+        const renameCancel = document.getElementById('renameCancel');
+
+        // --- Tab Logic ---
+        function generateId() {
+            return Math.random().toString(36).substr(2, 9);
+        }
+
+        function createTab(title = "Untitled", content = "") {
+            const id = generateId();
+            const tab = { id, title, content };
+            appState.tabs.push(tab);
+            return id;
+        }
+
+        // Rename logic state
+        let tabToRenameId = null;
+
+        function openRenameModal(id) {
+            const tab = appState.tabs.find(t => t.id === id);
+            if (!tab) return;
+
+            tabToRenameId = id;
+            renameInput.value = tab.title;
+            renameModal.classList.remove('hidden');
+            renameInput.focus();
+            isModalOpen = true;
+        }
+
+        function closeRenameModal() {
+            renameModal.classList.add('hidden');
+            isModalOpen = false;
+            tabToRenameId = null;
+        }
+
+        renameSubmit.addEventListener('click', () => {
+            if (tabToRenameId && renameInput.value.trim()) {
+                const tab = appState.tabs.find(t => t.id === tabToRenameId);
+                if (tab) {
+                    tab.title = renameInput.value.trim();
+                    renderTabs();
+                    performSave();
+                }
+            }
+            closeRenameModal();
+        });
+
+        renameCancel.addEventListener('click', closeRenameModal);
+
+        renameInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') renameSubmit.click();
+            if (e.key === 'Escape') closeRenameModal();
+        });
+
+        // Updated renameTab to use modal
+        function renameTab(id) {
+            openRenameModal(id);
+        }
+
+        function activateTab(id) {
+            const tab = appState.tabs.find(t => t.id === id);
+            if (!tab) return;
+
+            // Save current content before switching?
+            // Actually, we update content on 'input' event, so state should be up to date.
+
+            appState.activeTabId = id;
+            editor.value = tab.content;
+
+            if (isPreviewMode) {
+                renderMarkdownPreview();
+            }
+
+            renderTabs();
+            updateCounts();
+            editor.focus();
+        }
+
+        function closeTab(e, id) {
+            e.stopPropagation(); // Prevent activating the tab when clicking close
+
+            if (appState.tabs.length <= 1) {
+                // If last tab, just clear it or ask to reset?
+                // Let's just clear content and rename to Untitled
+                if (confirm("Close the last tab? This will clear its content.")) {
+                    appState.tabs[0].content = "";
+                    appState.tabs[0].title = "Untitled";
+                    activateTab(appState.tabs[0].id);
+                    performSave();
+                }
+                return;
+            }
+
+            // If closing active tab, switch to another
+            const index = appState.tabs.findIndex(t => t.id === id);
+            const isActive = (id === appState.activeTabId);
+
+            appState.tabs.splice(index, 1);
+
+            if (isActive) {
+                // Switch to previous, or next, or 0
+                const newIndex = Math.max(0, index - 1);
+                activateTab(appState.tabs[newIndex].id);
+            } else {
+                renderTabs();
+            }
+            performSave();
+        }
+
+        function renameTab(id) {
+            openRenameModal(id);
+        }
+
+        function renderTabs() {
+            tabBar.innerHTML = '';
+            appState.tabs.forEach(tab => {
+                const isActive = tab.id === appState.activeTabId;
+
+                const tabEl = document.createElement('div');
+                tabEl.className = `tab ${isActive ? 'active' : ''}`;
+                tabEl.onclick = () => activateTab(tab.id);
+                tabEl.ondblclick = () => renameTab(tab.id);
+
+                // Content container
+                const icon = document.createElement('i');
+                icon.className = 'fas fa-file-alt tab-icon';
+
+                const titleSpan = document.createElement('span');
+                titleSpan.innerText = tab.title;
+                titleSpan.className = 'tab-title';
+
+                // Actions container
+                const actions = document.createElement('div');
+                actions.className = 'tab-actions';
+
+                // Rename Btn
+                const renameBtn = document.createElement('div');
+                renameBtn.className = 'action-btn';
+                renameBtn.innerHTML = '<i class="fas fa-pen"></i>';
+                renameBtn.title = "Rename";
+                renameBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    renameTab(tab.id);
+                }
+
+                // Close Btn
+                const closeBtn = document.createElement('div');
+                closeBtn.className = 'action-btn delete';
+                closeBtn.innerHTML = '<i class="fas fa-times"></i>';
+                closeBtn.title = "Delete";
+                closeBtn.onclick = (e) => closeTab(e, tab.id);
+
+                actions.append(renameBtn, closeBtn);
+                tabEl.append(icon, titleSpan, actions);
+                tabBar.appendChild(tabEl);
+            });
+        }
+
+        // --- Core Editor Logic ---
+
+        function updateCurrentTabState() {
+            const tab = appState.tabs.find(t => t.id === appState.activeTabId);
+            if (tab) {
+                tab.content = editor.value;
+            }
+        }
+
+        editor.addEventListener('input', () => {
+            updateCurrentTabState();
+            performSave();
+        });
+
+        // --- Crypto Logic (Unchanged Helpers) ---
+        async function deriveKey(password, salt) {
+            const encoder = new TextEncoder();
+            const baseKey = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveKey"]);
+            return crypto.subtle.deriveKey(
+                { name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" },
+                baseKey, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]
+            );
+        }
+
+        async function encryptText(text, password) {
+            const salt = crypto.getRandomValues(new Uint8Array(16));
+            const iv = crypto.getRandomValues(new Uint8Array(12));
+            const key = await deriveKey(password, salt);
+            const encodedText = new TextEncoder().encode(text);
+            const encryptedContent = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encodedText);
+            const combined = new Uint8Array(salt.length + iv.length + encryptedContent.byteLength);
+            combined.set(salt, 0); combined.set(iv, salt.length);
+            combined.set(new Uint8Array(encryptedContent), salt.length + iv.length);
+            return btoa(String.fromCharCode(...combined)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        }
+
+        async function decryptText(encryptedBase64, password) {
+            try {
+                const combined = new Uint8Array(atob(encryptedBase64.replace(/-/g, '+').replace(/_/g, '/')).split('').map(c => c.charCodeAt(0)));
+                const salt = combined.slice(0, 16); const iv = combined.slice(16, 28); const data = combined.slice(28);
+                const key = await deriveKey(password, salt);
+                const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, data);
+                return new TextDecoder().decode(decrypted);
+            } catch (e) { return null; }
+        }
+
+        async function encodeToUrl(text) {
+            const encoded = btoa(unescape(encodeURIComponent(text)));
+            return encoded.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        }
+
+        async function decodeFromUrl(base64) {
+            try { return decodeURIComponent(escape(atob(base64.replace(/-/g, '+').replace(/_/g, '/')))); }
+            catch (e) { return null; }
+        }
+
+        // --- Save / Load Logic ---
+
+        async function performSave() {
+            updateCurrentTabState(); // Ensure sync
+            updateCounts();
+
+            clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(async () => {
+                const dataToSave = JSON.stringify(appState);
+
+                try {
+                    let hash;
+                    if (encryptionKey) {
+                        hash = 'enc_' + await encryptText(dataToSave, encryptionKey);
+                    } else {
+                        hash = await encodeToUrl(dataToSave);
+                    }
+
+                    // Don't clutter history, replace logic?
+                    // Window.location.hash updates create history entries? Usually yes.
+                    // But users expect to save state.
+                    window.location.hash = hash;
+
+                    saveIndicator.classList.remove('opacity-0');
+                    setTimeout(() => saveIndicator.classList.add('opacity-0'), 1000);
+                } catch (e) {
+                    console.error("Save failed", e);
+                }
+            }, 500);
+        }
+
+        function loadFromContent(content) {
+            // content is string. Try to parse as JSON state.
+            try {
+                const parsed = JSON.parse(content);
+                if (parsed.tabs && Array.isArray(parsed.tabs)) {
+                    // It is a valid state object
+                    appState = parsed;
+                    if (!appState.activeTabId && appState.tabs.length > 0) {
+                        appState.activeTabId = appState.tabs[0].id;
+                    }
+                } else {
+                    throw new Error("Not a state object");
+                }
+            } catch (e) {
+                // Migration: Treat as single file content
+                appState = {
+                    tabs: [],
+                    activeTabId: null
+                };
+                const id = createTab("Untitled", content || "");
+                appState.activeTabId = id;
+            }
+
+            // Ensure at least one tab
+            if (appState.tabs.length === 0) {
+                const id = createTab();
+                appState.activeTabId = id;
+            }
+
+            activateTab(appState.activeTabId);
+        }
+
+        // --- Initialization ---
+        window.onload = async () => {
+            const hash = window.location.hash.substring(1);
+
+            if (hash.startsWith('enc_')) {
+                const encryptedData = hash.substring(4);
+
+                const handleInitialDecryption = async (pass) => {
+                    const decrypted = await decryptText(encryptedData, pass);
+                    if (decrypted !== null) {
+                        encryptionKey = pass;
+                        loadFromContent(decrypted);
+
+                        lockBtn.classList.replace('fa-unlock', 'fa-lock');
+                        encryptionBadge.classList.remove('hidden');
+                        passwordModal.classList.add('hidden');
+                        isModalOpen = false;
+                        updateCounts();
+                    } else {
+                        // WRONG PASSWORD
+                        passwordInput.classList.add('border-red-500');
+                        passwordError.classList.remove('opacity-0');
+                        modalContainer.classList.add('shake');
+                        setTimeout(() => modalContainer.classList.remove('shake'), 400);
+                        passwordInput.value = '';
+                        passwordInput.focus();
+                    }
+                };
+
+                showModal("Decrypt Notebook", "This notebook is encrypted. Enter password to view tabs.", handleInitialDecryption);
+            } else if (hash) {
+                const decoded = await decodeFromUrl(hash);
+                if (decoded !== null) {
+                    loadFromContent(decoded);
+                } else {
+                    // Initialize empty
+                    loadFromContent("");
+                }
+            } else {
+                // No hash, new blank
+                loadFromContent("");
+            }
+
+            // Initial render done by loadFromContent -> activateTab -> renderTabs
+
+            if (localStorage.getItem('minimal_editor_theme') === 'light') {
+                document.body.setAttribute('data-theme', 'light');
+                themeToggle.classList.replace('fa-sun', 'fa-moon');
+            }
+            if (!isModalOpen) editor.focus();
+        };
+
+        // --- Other UI Logic ---
+
+        function renderMarkdownPreview() {
+            const rawContent = editor.value;
+            preview.innerHTML = marked.parse(rawContent);
+        }
+
+        function togglePreview() {
+            isPreviewMode = !isPreviewMode;
+            if (isPreviewMode) {
+                renderMarkdownPreview();
+                editor.style.display = 'none';
+                preview.style.display = 'block';
+                previewToggle.classList.replace('fa-eye', 'fa-pen');
+                modeBadge.innerText = 'PREVIEW';
+                modeBadge.classList.replace('bg-gray-800', 'bg-blue-900');
+            } else {
+                editor.style.display = 'block';
+                preview.style.display = 'none';
+                previewToggle.classList.replace('fa-pen', 'fa-eye');
+                modeBadge.innerText = 'EDIT';
+                modeBadge.classList.replace('bg-blue-900', 'bg-gray-800');
+                editor.focus();
+            }
+        }
+
+        previewToggle.addEventListener('click', togglePreview);
+
+        function updateCounts() {
+            const text = editor.value.trim();
+            const words = text ? text.split(/\s+/).length : 0;
+            // Maybe show total tabs too?
+            wordCountDisplay.innerText = `${words} WORDS`;
+        }
+
+        // Modal Handling General
+        window.addEventListener('keydown', (e) => {
+            if (isModalOpen) {
+                // Determine which modal is open to focus trap or submit
+                if (!passwordModal.classList.contains('hidden')) {
+                    if (document.activeElement !== passwordInput) passwordInput.focus();
+                    if (e.key === 'Enter') modalSubmit.click();
+                }
+                else if (!renameModal.classList.contains('hidden')) {
+                    if (document.activeElement !== renameInput) renameInput.focus();
+                    // Enter handled by specific listener
+                }
+            }
+        });
+
+        // New Tab
+        addTabBtn.addEventListener('click', () => {
+            const id = createTab();
+            activateTab(id);
+            performSave();
+        });
+
+        // Controls
+        newBtn.addEventListener('click', () => {
+            if (confirm("Close notebook and start fresh everywhere?")) {
+                appState = { tabs: [], activeTabId: null };
+                encryptionKey = null;
+                lockBtn.classList.replace('fa-lock', 'fa-unlock');
+                encryptionBadge.classList.add('hidden');
+                window.location.hash = '';
+
+                loadFromContent(""); // Reset to one blank tab
+            }
+        });
+
+        lockBtn.addEventListener('click', () => {
+            if (encryptionKey) {
+                // If locking while locked? No, unlock means remove encryption
+                if (confirm("Remove encryption? This will make the URL readable.")) {
+                    encryptionKey = null;
+                    lockBtn.classList.replace('fa-lock', 'fa-unlock');
+                    encryptionBadge.classList.add('hidden');
+                    performSave();
+                }
+            } else {
+                showModal("Encrypt Notebook", "Secure all tabs with a password URL.", (pass) => {
+                    if (pass) {
+                        encryptionKey = pass;
+                        lockBtn.classList.replace('fa-unlock', 'fa-lock');
+                        encryptionBadge.classList.remove('hidden');
+                        passwordModal.classList.add('hidden');
+                        isModalOpen = false;
+                        performSave();
+                    }
+                });
+            }
+        });
+
+        shareBtn.addEventListener('click', async () => {
+            // Need to force a save-like calculation to get the hash without setting it yet?
+            // Actually performSave updates the hash, so we just read the current href
+            // But we should ensure everything is synced.
+            updateCurrentTabState();
+            const dataToSave = JSON.stringify(appState);
+            const hash = encryptionKey ? 'enc_' + await encryptText(dataToSave, encryptionKey) : await encodeToUrl(dataToSave);
+
+            const fullUrl = window.location.href.split('#')[0] + '#' + hash;
+            shareLinkArea.value = fullUrl;
+            shareModal.classList.remove('hidden');
+            isModalOpen = true;
+        });
+
+        copyBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(editor.value);
+            copyBtn.classList.replace('fa-copy', 'fa-check');
+            setTimeout(() => copyBtn.classList.replace('fa-check', 'fa-copy'), 1500);
+        });
+
+        themeToggle.addEventListener('click', () => {
+            const current = document.body.getAttribute('data-theme');
+            const next = current === 'dark' ? 'light' : 'dark';
+            document.body.setAttribute('data-theme', next);
+            themeToggle.classList.toggle('fa-sun', next === 'dark');
+            themeToggle.classList.toggle('fa-moon', next === 'light');
+            localStorage.setItem('minimal_editor_theme', next);
+        });
+
+        clearBtn.addEventListener('click', () => {
+            if (confirm("Clear text in current tab?")) {
+                editor.value = '';
+                updateCounts();
+                performSave();
+            }
+        });
+
+        downloadBtn.addEventListener('click', () => {
+            // Download current tab or zip of all? User probably expects current tab.
+            const blob = new Blob([editor.value], { type: 'text/markdown' });
+            const tab = appState.tabs.find(t => t.id === appState.activeTabId);
+            const filename = (tab.title || 'note') + '.md';
+
+            const a = document.createElement('a');
+            a.download = filename;
+            a.href = URL.createObjectURL(blob);
+            a.click();
+        });
+
+        function showModal(title, desc, callback) {
+            isModalOpen = true;
+            modalTitle.innerText = title;
+            modalDesc.innerText = desc;
+            passwordInput.value = '';
+            passwordInput.classList.remove('border-red-500');
+            passwordError.classList.add('opacity-0');
+            passwordModal.classList.remove('hidden');
+            passwordInput.focus();
+
+            modalSubmit.onclick = () => {
+                callback(passwordInput.value);
+            };
+            modalCancel.onclick = () => {
+                passwordModal.classList.add('hidden');
+                isModalOpen = false;
+            };
+        }
+
+        shareClose.addEventListener('click', () => {
+            shareModal.classList.add('hidden');
+            isModalOpen = false;
+        });
+
+        shareCopy.addEventListener('click', () => {
+            shareLinkArea.select();
+            document.execCommand('copy');
+            shareCopy.innerText = "Copied!";
+            setTimeout(() => shareCopy.innerText = "Copy Link", 2000);
+        });
+
+        // Sidebar Toggle
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+
+        sidebarToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('collapsed');
+            const isCollapsed = sidebar.classList.contains('collapsed');
+
+            // Update tooltip
+            sidebarToggle.title = isCollapsed ? "Expand Sidebar" : "Collapse Sidebar";
+        });
+
+
+        editor.addEventListener('keydown', (e) => {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = editor.selectionStart;
+                editor.value = editor.value.substring(0, start) + "  " + editor.value.substring(editor.selectionEnd);
+                editor.selectionStart = editor.selectionEnd = start + 2;
+                // input event doesn't fire on script value change usually
+                updateCurrentTabState();
+                performSave();
+            }
+        });
+    </script>
+</body>
+
+</html>
