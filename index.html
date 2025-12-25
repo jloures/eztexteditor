@@ -381,6 +381,11 @@
         </div>
 
         <div class="flex items-center gap-6">
+            <div id="collabStatus"
+                class="hidden flex items-center gap-2 text-xs font-mono text-green-400 border border-green-900 bg-green-900/20 px-3 py-1 rounded-full animate-pulse">
+                <i class="fas fa-circle text-[8px]"></i> <span id="peerCount">1</span> ONLINE
+            </div>
+            <i id="collabBtn" class="fas fa-broadcast-tower btn-icon text-purple-400" data-title="Go Live (P2P)"></i>
             <i id="newBtn" class="fas fa-plus btn-icon" data-title="Start from Scratch"></i>
             <i id="previewToggle" class="fas fa-eye btn-icon" data-title="Toggle Preview (Markdown)"></i>
             <i id="lockBtn" class="fas fa-unlock btn-icon" data-title="Symmetric Password Encryption"></i>
@@ -435,6 +440,21 @@
         </div>
     </div>
 
+    <!-- Generic Input Modal (For Room Name) -->
+    <div id="inputModal" class="fixed inset-0 modal-overlay z-50 flex items-center justify-center hidden">
+        <div class="bg-[#1e1e1e] p-8 rounded-xl w-full max-w-md border border-gray-800 shadow-2xl">
+            <h3 id="inputTitle" class="text-xl font-bold mb-4 text-white">Enter Value</h3>
+            <p id="inputDesc" class="text-gray-400 text-sm mb-6">Description...</p>
+            <input type="text" id="genericInput"
+                class="w-full bg-black border border-gray-700 rounded p-3 mb-2 text-white outline-none focus:border-blue-500 transition-colors">
+            <div class="flex justify-end gap-3 scale-90 origin-right">
+                <button id="inputCancel" class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+                <button id="inputSubmit"
+                    class="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-500 transition">Confirm</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Share Link Modal -->
     <div id="shareModal" class="fixed inset-0 modal-overlay z-50 flex items-center justify-center hidden">
         <div class="bg-[#1e1e1e] p-8 rounded-xl w-full max-w-lg border border-gray-800 shadow-2xl">
@@ -484,7 +504,14 @@
         URL UPDATED
     </div>
 
+    <!-- UMD Imports for file:// compatible support -->
+    <script src="js/libs.js"></script>
+
+
     <script>
+        // Globals loaded from js/libs.js: Y, WebrtcProvider
+
+
         // --- Configuration ---
         const APP_BASE_URL = 'https://eztexteditor.netlify.app';
 
@@ -499,6 +526,14 @@
         let isModalOpen = false;
         let saveTimeout;
 
+        // Collab State
+        let isCollabMode = false;
+        let yDoc = null;
+        let yProvider = null;
+        let yTabs = null; // Y.Array
+        let currentYText = null; // Y.Text binding for active tab
+        let roomName = null;
+
         // --- Elements ---
         const editor = document.getElementById('editor');
         const preview = document.getElementById('preview');
@@ -506,6 +541,10 @@
         const addTabBtn = document.getElementById('addTabBtn');
 
         // Toolbar Elements
+        const collabBtn = document.getElementById('collabBtn');
+        const collabStatus = document.getElementById('collabStatus');
+        const peerCount = document.getElementById('peerCount');
+
         const previewToggle = document.getElementById('previewToggle');
         const modeBadge = document.getElementById('modeBadge');
         const wordCountDisplay = document.getElementById('wordCount');
@@ -568,6 +607,45 @@
             isModalOpen = false;
         };
 
+        // --- Generic Input Modal Logic ---
+        const inputModal = document.getElementById('inputModal');
+        const inputTitle = document.getElementById('inputTitle');
+        const inputDesc = document.getElementById('inputDesc');
+        const genericInput = document.getElementById('genericInput');
+        const inputSubmit = document.getElementById('inputSubmit');
+        const inputCancel = document.getElementById('inputCancel');
+        let inputCallback = null;
+
+        function showInputModal(title, desc, initialValue, callback) {
+            inputTitle.innerText = title;
+            inputDesc.innerText = desc;
+            genericInput.value = initialValue;
+            inputCallback = callback;
+            inputModal.classList.remove('hidden');
+            genericInput.focus();
+            // Select all text
+            genericInput.setSelectionRange(0, genericInput.value.length);
+            isModalOpen = true;
+        }
+
+        function closeInputModal() {
+            inputModal.classList.add('hidden');
+            isModalOpen = false;
+            inputCallback = null;
+        }
+
+        inputSubmit.onclick = () => {
+            if (inputCallback && genericInput.value.trim()) {
+                inputCallback(genericInput.value.trim());
+            }
+            closeInputModal();
+        };
+        inputCancel.onclick = closeInputModal;
+        genericInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') inputSubmit.click();
+            if (e.key === 'Escape') closeInputModal();
+        });
+
         // --- Tab Logic ---
         function generateId() {
             return Math.random().toString(36).substr(2, 9);
@@ -576,7 +654,13 @@
         function createTab(title = "Untitled", content = "") {
             const id = generateId();
             const tab = { id, title, content };
-            appState.tabs.push(tab);
+
+            if (isCollabMode) {
+                // In collab, we modify Yjs directly
+                yTabs.push([tab]);
+            } else {
+                appState.tabs.push(tab);
+            }
             return id;
         }
 
@@ -602,11 +686,23 @@
 
         renameSubmit.addEventListener('click', () => {
             if (tabToRenameId && renameInput.value.trim()) {
-                const tab = appState.tabs.find(t => t.id === tabToRenameId);
-                if (tab) {
-                    tab.title = renameInput.value.trim();
-                    renderTabs();
-                    performSave();
+                if (isCollabMode) {
+                    const index = yTabs.toArray().findIndex(t => t.id === tabToRenameId);
+                    if (index > -1) {
+                        yDoc.transact(() => {
+                            const t = yTabs.get(index);
+                            t.title = renameInput.value.trim();
+                            yTabs.delete(index, 1);
+                            yTabs.insert(index, [t]);
+                        });
+                    }
+                } else {
+                    const tab = appState.tabs.find(t => t.id === tabToRenameId);
+                    if (tab) {
+                        tab.title = renameInput.value.trim();
+                        renderTabs();
+                        performSave();
+                    }
                 }
             }
             closeRenameModal();
@@ -625,14 +721,25 @@
         }
 
         function activateTab(id) {
-            const tab = appState.tabs.find(t => t.id === id);
+            // Find tab
+            const tab = isCollabMode ? yTabs.toArray().find(t => t.id === id) : appState.tabs.find(t => t.id === id);
             if (!tab) return;
 
-            // Save current content before switching?
-            // Actually, we update content on 'input' event, so state should be up to date.
+            // Sync prev tab content if in local mode
+            if (!isCollabMode && appState.activeTabId) {
+                const oldTab = appState.tabs.find(t => t.id === appState.activeTabId);
+                if (oldTab) oldTab.content = editor.value; // ensure mostly up to date
+            }
 
             appState.activeTabId = id;
-            editor.value = tab.content;
+
+            if (isCollabMode) {
+                // Rebind editor to new Y.Text
+                bindYTextToEditor(id);
+            } else {
+                editor.value = tab.content;
+                editor.focus();
+            }
 
             if (isPreviewMode) {
                 renderMarkdownPreview();
@@ -640,7 +747,6 @@
 
             renderTabs();
             updateCounts();
-            editor.focus();
         }
 
         function closeTab(e, id) {
@@ -689,7 +795,8 @@
 
         function renderTabs() {
             tabBar.innerHTML = '';
-            appState.tabs.forEach(tab => {
+            const tabs = isCollabMode ? yTabs.toArray() : appState.tabs;
+            tabs.forEach(tab => {
                 const isActive = tab.id === appState.activeTabId;
 
                 const tabEl = document.createElement('div');
@@ -732,9 +839,139 @@
             });
         }
 
+        // --- Collaboration Logic ---
+
+        collabBtn.addEventListener('click', () => {
+            if (isCollabMode) {
+                showConfirm("Stop Collaboration?", "This will disconnect you. Current state will be saved to URL.", () => {
+                    stopCollaboration();
+                });
+            } else {
+                let suggestedRoom = 'room-' + generateId();
+                showInputModal("Start Collaboration", "Enter a Room Name (users must join the same room):", suggestedRoom, (room) => {
+                    startCollaboration(room);
+                });
+            }
+        });
+
+        function startCollaboration(room) {
+            roomName = room;
+            isCollabMode = true;
+            collabBtn.classList.replace('text-purple-400', 'text-green-400');
+            collabBtn.classList.add('animate-pulse');
+            collabStatus.classList.remove('hidden');
+            peerCount.innerText = "0";
+
+            yDoc = new Y.Doc();
+            yTabs = yDoc.getArray('tabs');
+
+            try {
+                yProvider = new WebrtcProvider(roomName, yDoc, {
+                    signaling: [
+                        'wss://signaling.yjs.dev',
+                        'wss://y-webrtc-signaling-eu.herokuapp.com',
+                        'wss://y-webrtc-signaling-us.herokuapp.com'
+                    ],
+                    password: encryptionKey,
+                    maxConns: 20 + Math.floor(Math.random() * 15)
+                });
+            } catch (err) {
+                console.error("Failed to init WebRTC: ", err);
+                alert("Collaboration Error: " + err.message);
+                return;
+            }
+
+            yProvider.awareness.on('change', () => {
+                const count = Array.from(yProvider.awareness.getStates().keys()).length;
+                peerCount.innerText = count;
+            });
+
+            yTabs.observe(() => {
+                renderTabs();
+                const tabs = yTabs.toArray();
+                if (!appState.activeTabId && tabs.length > 0) {
+                    activateTab(tabs[0].id);
+                }
+                if (appState.activeTabId && !tabs.find(t => t.id === appState.activeTabId) && tabs.length > 0) {
+                    activateTab(tabs[0].id);
+                }
+            });
+
+            yProvider.on('synced', (synced) => {
+                if (synced) {
+                    if (yTabs.length === 0 && appState.tabs.length > 0) {
+                        yDoc.transact(() => {
+                            yTabs.insert(0, appState.tabs);
+                            appState.tabs.forEach(tab => {
+                                const yText = yDoc.getText('content_' + tab.id);
+                                if (yText.length === 0) {
+                                    yText.insert(0, tab.content);
+                                }
+                            });
+                        });
+                    }
+                    if (yTabs.length > 0 && !appState.activeTabId) {
+                        activateTab(yTabs.get(0).id);
+                    }
+                }
+            });
+
+            const newHash = `room=${roomName}` + (encryptionKey ? `&key=protected` : ``);
+            history.replaceState(null, null, '#' + newHash);
+        }
+
+        function stopCollaboration() {
+            const tabs = yTabs.toArray();
+            appState.tabs = tabs.map(t => {
+                return {
+                    id: t.id,
+                    title: t.title,
+                    content: yDoc.getText('content_' + t.id).toString()
+                };
+            });
+
+            yProvider.destroy();
+            yDoc.destroy();
+            yDoc = null;
+            yProvider = null;
+            yTabs = null;
+            currentYText = null;
+
+            isCollabMode = false;
+            collabBtn.classList.replace('text-green-400', 'text-purple-400');
+            collabBtn.classList.remove('animate-pulse');
+            collabStatus.classList.add('hidden');
+
+            performSave();
+            renderTabs();
+            const t = appState.tabs.find(t => t.id === appState.activeTabId);
+            if (t) activateTab(t.id);
+        }
+
+        function bindYTextToEditor(tabId) {
+            const yText = yDoc.getText('content_' + tabId);
+            currentYText = yText;
+
+            editor.value = yText.toString();
+
+            yText.observe(e => {
+                if (currentYText !== yText) return;
+                if (e.transaction.origin !== yProvider.awareness.clientID) {
+                    const start = editor.selectionStart;
+                    const end = editor.selectionEnd;
+                    editor.value = yText.toString();
+                    editor.selectionStart = start;
+                    editor.selectionEnd = end;
+                    updateCounts();
+                    if (isPreviewMode) renderMarkdownPreview();
+                }
+            });
+        }
+
         // --- Core Editor Logic ---
 
         function updateCurrentTabState() {
+            if (isCollabMode) return; // handled by Yjs
             const tab = appState.tabs.find(t => t.id === appState.activeTabId);
             if (tab) {
                 tab.content = editor.value;
@@ -742,8 +979,20 @@
         }
 
         editor.addEventListener('input', () => {
-            updateCurrentTabState();
-            performSave();
+            if (isCollabMode && currentYText) {
+                const yVal = currentYText.toString();
+                const domVal = editor.value;
+                if (yVal === domVal) return;
+
+                yDoc.transact(() => {
+                    currentYText.delete(0, currentYText.length);
+                    currentYText.insert(0, domVal);
+                }, yProvider.awareness.clientID);
+            } else {
+                updateCurrentTabState();
+                performSave();
+            }
+            updateCounts();
         });
 
         // --- Crypto Logic (Unchanged Helpers) ---
@@ -1035,11 +1284,22 @@
 
         downloadBtn.addEventListener('click', async () => {
             try {
-                // Ensure state is synced
-                updateCurrentTabState();
+                // If in collab mode, we snapshot current state to appState for export
+                let exportState;
+                if (isCollabMode) {
+                    // Update checks already handled, just fetch from YJS
+                    const tabs = yTabs.toArray();
+                    exportState = {
+                        tabs: tabs.map(t => ({ id: t.id, title: t.title, content: yDoc.getText('content_' + t.id).toString() })),
+                        activeTabId: appState.activeTabId
+                    };
+                } else {
+                    updateCurrentTabState();
+                    exportState = appState;
+                }
 
                 // Generate the hash (encrypted or plain)
-                const dataToSave = JSON.stringify(appState);
+                const dataToSave = JSON.stringify(exportState);
                 const hash = encryptionKey ? 'enc_' + await encryptText(dataToSave, encryptionKey) : await encodeToUrl(dataToSave);
 
                 // Construct the full URL with the base app URL
