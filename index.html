@@ -7,6 +7,7 @@
     <title>Secure Markdown Editor</title>
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500&display=swap');
@@ -385,7 +386,7 @@
             <i id="lockBtn" class="fas fa-unlock btn-icon" data-title="Symmetric Password Encryption"></i>
             <i id="shareBtn" class="fas fa-share-nodes btn-icon" data-title="Copy Share Link"></i>
             <i id="themeToggle" class="fas fa-sun btn-icon" data-title="Toggle Dark Mode"></i>
-            <i id="downloadBtn" class="fas fa-download btn-icon" data-title="Download .md"></i>
+            <i id="downloadBtn" class="fas fa-download btn-icon" data-title="Download contents"></i>
             <i id="copyBtn" class="fas fa-copy btn-icon" data-title="Copy Raw Text"></i>
             <i id="clearBtn" class="fas fa-trash-alt btn-icon text-red-400" data-title="Clear All"></i>
         </div>
@@ -484,6 +485,9 @@
     </div>
 
     <script>
+        // --- Configuration ---
+        const APP_BASE_URL = 'https://eztexteditor.netlify.app';
+
         // --- State Management ---
         let appState = {
             tabs: [],
@@ -1029,16 +1033,54 @@
             });
         });
 
-        downloadBtn.addEventListener('click', () => {
-            // Download current tab or zip of all? User probably expects current tab.
-            const blob = new Blob([editor.value], { type: 'text/markdown' });
-            const tab = appState.tabs.find(t => t.id === appState.activeTabId);
-            const filename = (tab.title || 'note') + '.md';
+        downloadBtn.addEventListener('click', async () => {
+            try {
+                // Ensure state is synced
+                updateCurrentTabState();
 
-            const a = document.createElement('a');
-            a.download = filename;
-            a.href = URL.createObjectURL(blob);
-            a.click();
+                // Generate the hash (encrypted or plain)
+                const dataToSave = JSON.stringify(appState);
+                const hash = encryptionKey ? 'enc_' + await encryptText(dataToSave, encryptionKey) : await encodeToUrl(dataToSave);
+
+                // Construct the full URL with the base app URL
+                const fullUrl = APP_BASE_URL + '#' + hash;
+
+                // Create the redirect HTML content
+                // We use a small script to force redirect immediately
+                const htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="0; url=${fullUrl}">
+    <title>Restoring Notebook...</title>
+    <script>
+        window.location.href = "${fullUrl}";
+    <\/script>
+    <style>
+        body { font-family: sans-serif; background: #121212; color: #fff; display: flex; align-items: center; justify-content: center; height: 100vh; flex-direction: column; }
+        a { color: #3b82f6; }
+    </style>
+</head>
+<body>
+    <p>Opening your notebook secure environment...</p>
+    <p><small>If not redirected automatically, <a href="${fullUrl}">click here</a>.</small></p>
+</body>
+</html>`;
+
+                // Use JSZip to create a zip file
+                const zip = new JSZip();
+                zip.file("Open Notebook.html", htmlContent);
+
+                // Generate and trigger download
+                const blob = await zip.generateAsync({ type: "blob" });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = "notebook_backup.zip";
+                a.click();
+            } catch (e) {
+                console.error("Export failed:", e);
+                alert("Failed to export notebook.");
+            }
         });
 
         function showModal(title, desc, callback) {
