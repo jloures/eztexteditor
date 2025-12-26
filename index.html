@@ -486,7 +486,7 @@
 
     <script>
         // --- Configuration ---
-        const APP_BASE_URL = 'https://eztexteditor.netlify.app';
+        const APP_BASE_URL = window.location.origin + window.location.pathname.replace(/\/$/, "");
 
         // --- State Management ---
         let appState = {

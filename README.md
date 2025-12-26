@@ -11,7 +11,7 @@ A **secure, client-side, multi-tab Markdown editor** that stores 100% of your da
 -   **⚡ Live Preview**: Instant Markdown rendering as you type.
 -   **🎨 Modern UI**: Clean, distraction-free interface with Dark/Light mode support.
 -   **🔗 Shareable Links**: Generate secure, shareable links containing your entire notebook state.
--   **📂 Portable**: Download your notes as `.md` files or copy raw text instantly.
+-   **📂 Portable**: Download your entire notebook as a secure `.zip` backup or copy raw text instantly.
 -   **No Setup Required**: Just open `index.html` and start writing.
 
 ## 🚀 How It Works
@@ -33,7 +33,7 @@ Simply open `index.html` in any modern web browser.
 -   **Rename Note**: Double-click a tab or click the pencil icon to rename.
 -   **Encrypt**: Click the **Unlock** icon in the toolbar to set a password.
 -   **Preview**: Toggle the **Eye** icon to switch between Edit and Preview modes.
--   **Export**: Click the **Download** icon to save the current tab as a `.md` file.
+-   **Export**: Click the **Download** icon to save your entire workspace as a `.zip` file containing a secure restoration script.
 
 ## 📦 Installation
 
@@ -44,6 +44,25 @@ git clone https://github.com/jloures/eztexteditor.git
 cd eztexteditor
 open index.html
 ```
+
+## 🚀 Deployment
+
+This app can be deployed to any static site hosting service.
+
+### GitHub Pages
+1. Go to your repository **Settings** > **Pages**.
+2. Under **Build and deployment**, select **Deploy from a branch**.
+3. Select the `main` branch and `/ (root)` folder.
+4. Click **Save**.
+
+### Netlify
+1. Connect your repository to [Netlify](https://www.netlify.com/).
+2. Netlify will automatically detect the `index.html` and deploy it.
+3. (Optional) Set up a custom domain in the Netlify dashboard.
+
+### Vercel
+1. Import your repository to [Vercel](https://vercel.com/).
+2. Click **Deploy**.
 
 ## 🔒 Security
 
