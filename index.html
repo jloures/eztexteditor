@@ -187,16 +187,26 @@
             padding-bottom: 20px;
         }
 
-        .tab-list::-webkit-scrollbar {
+        /* Ghost Scrollbar - Blends seamlessly into the background */
+        ::-webkit-scrollbar {
             width: 4px;
+            height: 4px;
         }
 
-        .tab-list::-webkit-scrollbar-thumb {
+        ::-webkit-scrollbar-track {
             background: transparent;
         }
 
-        .tab-list:hover::-webkit-scrollbar-thumb {
-            background: var(--border-color);
+        ::-webkit-scrollbar-thumb {
+            background: rgba(128, 128, 128, 0.08);
+            /* Barely visible when idle */
+            border-radius: 20px;
+            transition: background 0.3s;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(128, 128, 128, 0.25);
+            /* Subtle grey on hover */
         }
 
         .tab {
@@ -509,21 +519,7 @@
             opacity: 1;
         }
 
-        #editor::-webkit-scrollbar,
-        #preview::-webkit-scrollbar {
-            width: 4px;
-        }
-
-        #editor::-webkit-scrollbar-thumb,
-        #preview::-webkit-scrollbar-thumb {
-            background: #eee;
-            border-radius: 10px;
-        }
-
-        [data-theme='dark'] #editor::-webkit-scrollbar-thumb,
-        [data-theme='dark'] #preview::-webkit-scrollbar-thumb {
-            background: #333;
-        }
+        /* (Scrollbar overrides removed in favor of global style) */
 
         .modal-overlay {
             background: rgba(0, 0, 0, 0.9);
@@ -725,6 +721,8 @@
             border: 1px solid transparent;
         }
 
+
+
         #searchModal .search-item:hover,
         #searchModal .search-item.selected {
             background: rgba(59, 130, 246, 0.1);
@@ -922,7 +920,7 @@
                     class="bg-transparent border-none outline-none text-white flex-1 text-lg"
                     placeholder="Search notes... (Esc to close)">
             </div>
-            <div id="searchResults" class="max-height-[50vh] overflow-y-auto space-y-2">
+            <div id="searchResults" class="max-h-[60vh] overflow-y-auto space-y-2 pr-2">
                 <!-- Results injected here -->
             </div>
             <div class="mt-4 pt-4 border-t border-gray-800 flex justify-between text-xs text-gray-500">
