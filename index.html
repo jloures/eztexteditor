@@ -51,7 +51,32 @@
             display: flex;
             flex-direction: column;
             flex-shrink: 0;
+            position: relative;
             transition: width 0.3s ease;
+        }
+
+        .sidebar.resizing {
+            transition: none;
+        }
+
+        .resizer {
+            width: 4px;
+            height: 100%;
+            position: absolute;
+            right: -2px;
+            top: 0;
+            cursor: col-resize;
+            z-index: 10;
+        }
+
+        .resizer:hover,
+        .resizer.active {
+            background: var(--accent-color);
+            opacity: 0.5;
+        }
+
+        .sidebar.collapsed .resizer {
+            display: none;
         }
 
         .sidebar-header {
@@ -410,6 +435,7 @@
                     <i class="fas fa-plus"></i> <span class="btn-text">New Note</span>
                 </button>
             </div>
+            <div id="sidebar-resizer" class="resizer"></div>
         </div>
 
         <!-- Editor Area -->
@@ -499,12 +525,16 @@
         let isPreviewMode = false;
         let isModalOpen = false;
         let saveTimeout;
+        let isResizing = false;
+        let sidebarWidth = 260;
 
         // --- Elements ---
         const editor = document.getElementById('editor');
         const preview = document.getElementById('preview');
         const tabBar = document.getElementById('tabBar');
         const addTabBtn = document.getElementById('addTabBtn');
+        const sidebar = document.getElementById('sidebar');
+        const resizer = document.getElementById('sidebar-resizer');
 
         // Toolbar Elements
         const previewToggle = document.getElementById('previewToggle');
@@ -568,6 +598,47 @@
             confirmModal.classList.add('hidden');
             isModalOpen = false;
         };
+
+        // --- Sidebar Resizing ---
+        resizer.addEventListener('mousedown', (e) => {
+            if (sidebar.classList.contains('collapsed')) return;
+            isResizing = true;
+            sidebar.classList.add('resizing');
+            resizer.classList.add('active');
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+
+            const newWidth = e.clientX;
+            if (newWidth >= 160 && newWidth <= 600) {
+                sidebarWidth = newWidth;
+                sidebar.style.width = `${sidebarWidth}px`;
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (!isResizing) return;
+            isResizing = false;
+            sidebar.classList.remove('resizing');
+            resizer.classList.remove('active');
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+
+            // Save to localStorage
+            localStorage.setItem('sidebarWidth', sidebarWidth);
+        });
+
+        // Initialize sidebar width from localStorage
+        const savedWidth = localStorage.getItem('sidebarWidth');
+        if (savedWidth) {
+            sidebarWidth = parseInt(savedWidth);
+            if (!sidebar.classList.contains('collapsed')) {
+                sidebar.style.width = `${sidebarWidth}px`;
+            }
+        }
 
         // --- Tab Logic ---
         function generateId() {
@@ -1116,12 +1187,17 @@
         });
 
         // Sidebar Toggle
-        const sidebar = document.getElementById('sidebar');
         const sidebarToggle = document.getElementById('sidebarToggle');
 
         sidebarToggle.addEventListener('click', () => {
             sidebar.classList.toggle('collapsed');
             const isCollapsed = sidebar.classList.contains('collapsed');
+
+            if (isCollapsed) {
+                sidebar.style.width = '';
+            } else {
+                sidebar.style.width = `${sidebarWidth}px`;
+            }
 
             // Update tooltip
             sidebarToggle.title = isCollapsed ? "Expand Sidebar" : "Collapse Sidebar";
