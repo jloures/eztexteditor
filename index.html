@@ -723,7 +723,7 @@
 
 
 
-        #searchModal .search-item.selected {
+        .search-item.selected {
             background: rgba(59, 130, 246, 0.1);
             border-color: var(--accent-color);
         }
@@ -914,10 +914,10 @@
     <div id="searchModal" class="fixed inset-0 modal-overlay z-50 flex items-start justify-center hidden pt-24">
         <div class="bg-[#1e1e1e] p-4 rounded-xl w-full max-w-2xl border border-gray-800 shadow-2xl">
             <div class="flex items-center gap-3 border-b border-gray-800 pb-4 mb-4">
-                <i class="fas fa-search text-gray-400"></i>
+                <i class="fas fa-globe text-gray-400"></i>
                 <input type="text" id="searchInput"
                     class="bg-transparent border-none outline-none text-white flex-1 text-lg"
-                    placeholder="Search notes... (Esc to close)">
+                    placeholder="Search all notes... (Esc to close)">
             </div>
             <div id="searchResults" class="max-h-[60vh] overflow-y-auto space-y-2 pr-2">
                 <!-- Results injected here -->
@@ -925,6 +925,25 @@
             <div class="mt-4 pt-4 border-t border-gray-800 flex justify-between text-xs text-gray-500">
                 <span>↑↓ navigate • Enter to select • Esc to close</span>
                 <span id="searchStatus">0 results</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Local Search Modal (In-Tab) -->
+    <div id="localSearchModal" class="fixed inset-0 modal-overlay z-50 flex items-start justify-center hidden pt-24">
+        <div class="bg-[#1e1e1e] p-4 rounded-xl w-full max-w-2xl border border-gray-800 shadow-2xl">
+            <div class="flex items-center gap-3 border-b border-gray-800 pb-4 mb-4">
+                <i class="fas fa-file-alt text-gray-400"></i>
+                <input type="text" id="localSearchInput"
+                    class="bg-transparent border-none outline-none text-white flex-1 text-lg"
+                    placeholder="Search in this note... (Esc to close)">
+            </div>
+            <div id="localSearchResults" class="max-h-[60vh] overflow-y-auto space-y-2 pr-2">
+                <!-- Results injected here -->
+            </div>
+            <div class="mt-4 pt-4 border-t border-gray-800 flex justify-between text-xs text-gray-500">
+                <span>↑↓ navigate • Enter to select • Esc to close</span>
+                <span id="localSearchStatus">0 results</span>
             </div>
         </div>
     </div>
@@ -974,6 +993,11 @@
                     <h4 class="text-blue-400 font-bold uppercase text-xs tracking-widest mb-4">Keyboard Shortcuts</h4>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
                         <div class="space-y-3">
+                            <div class="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
+                                <span class="text-gray-400">Search In Note</span>
+                                <kbd id="kbd-local-search"
+                                    class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs font-mono">⌘F</kbd>
+                            </div>
                             <div class="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
                                 <span class="text-gray-400">Global Search</span>
                                 <kbd id="kbd-search"
@@ -1218,6 +1242,11 @@
         const searchInput = document.getElementById('searchInput');
         const searchResults = document.getElementById('searchResults');
         const searchStatus = document.getElementById('searchStatus');
+
+        const localSearchModal = document.getElementById('localSearchModal');
+        const localSearchInput = document.getElementById('localSearchInput');
+        const localSearchResults = document.getElementById('localSearchResults');
+        const localSearchStatus = document.getElementById('localSearchStatus');
         const wikiSuggestion = document.getElementById('wikiSuggestion');
         const graphBtn = document.getElementById('graphBtn');
         const graphModal = document.getElementById('graphModal');
@@ -1815,6 +1844,7 @@
             const typewriterMod = IS_MAC ? '⌘J' : 'Alt+T';
             const panicMod = IS_MAC ? '⌘K' : 'Alt+P';
             const searchLabel = IS_MAC ? '⌘⇧F' : 'Ctrl+Shift+F';
+            const localSearchLabel = IS_MAC ? '⌘F' : 'Ctrl+F';
 
             // New Shortcuts Labels
             const newMod = IS_MAC ? '⌘⇧⌫' : 'Ctrl+Shift+Del';
@@ -1850,6 +1880,7 @@
 
             // Update Info Modal KBDs
             if (document.getElementById('kbd-search')) document.getElementById('kbd-search').innerText = searchLabel;
+            if (document.getElementById('kbd-local-search')) document.getElementById('kbd-local-search').innerText = localSearchLabel;
             if (document.getElementById('kbd-zen')) document.getElementById('kbd-zen').innerText = zenMod;
             if (document.getElementById('kbd-typewriter')) document.getElementById('kbd-typewriter').innerText = typewriterMod;
             if (document.getElementById('kbd-panic')) document.getElementById('kbd-panic').innerText = panicMod;
@@ -2072,6 +2103,7 @@
         let selectedSearchIndex = 0;
         let searchFilteredMatches = [];
         let currentSearchQuery = '';
+        let searchDebounceTimeout;
 
         function highlightMatch(text, query) {
             if (!query) return text;
@@ -2219,7 +2251,149 @@
             }
         }
 
-        let searchDebounceTimeout;
+        // 4. Local Search (In-Tab)
+        let selectedLocalSearchIndex = -1;
+        let localSearchFilteredMatches = [];
+
+        function openLocalSearch() {
+            if (!appState.activeTabId) return;
+            isModalOpen = true;
+            localSearchModal.classList.remove('hidden');
+            localSearchInput.value = '';
+            localSearchInput.focus();
+            renderLocalSearchResults('');
+        }
+
+        function closeLocalSearch() {
+            localSearchModal.classList.add('hidden');
+            isModalOpen = false;
+        }
+
+        function renderLocalSearchResults(query) {
+            localSearchResults.innerHTML = '';
+            localSearchFilteredMatches = [];
+
+            const tab = findItemById(appState.activeTabId);
+            if (!tab || !query.trim()) {
+                localSearchStatus.innerText = '0 results';
+                return;
+            }
+
+            const trimmedQuery = query.trim();
+            const qLower = trimmedQuery.toLowerCase();
+            const escaped = trimmedQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const highlightRegex = new RegExp(`(${escaped})`, 'gi');
+
+            const content = tab.content || "";
+            const cLower = content.toLowerCase();
+            let pos = cLower.indexOf(qLower);
+            let lastMatchPos = 0;
+            let currentLine = 1;
+
+            while (pos !== -1 && localSearchFilteredMatches.length < 500) {
+                const segment = content.substring(lastMatchPos, pos);
+                let newlines = 0;
+                for (let i = 0; i < segment.length; i++) {
+                    if (segment[i] === '\n') newlines++;
+                }
+                currentLine += newlines;
+                lastMatchPos = pos;
+
+                localSearchFilteredMatches.push({
+                    tab: tab,
+                    matchIndex: pos,
+                    lineNum: currentLine,
+                    isTitle: false
+                });
+                pos = cLower.indexOf(qLower, pos + 1);
+            }
+
+            localSearchStatus.innerText = `${localSearchFilteredMatches.length} results`;
+            selectedLocalSearchIndex = -1;
+
+            const fragment = document.createDocumentFragment();
+            localSearchFilteredMatches.forEach((match, index) => {
+                const div = document.createElement('div');
+                div.className = 'search-item';
+
+                const title = document.createElement('div');
+                title.className = 'font-bold text-gray-200 flex items-center gap-2';
+                const highlight = (text) => text.replace(highlightRegex, '<span class="search-match-highlight">$1</span>');
+                title.innerHTML = `<i class="fas fa-file-alt text-xs opacity-50"></i> Line ${match.lineNum}`;
+
+                const snippet = document.createElement('div');
+                snippet.className = 'text-sm text-gray-500 truncate font-mono mt-1';
+
+                const start = Math.max(0, match.matchIndex - 40);
+                const end = Math.min(content.length, match.matchIndex + trimmedQuery.length + 60);
+                let prefix = start > 0 ? '...' : '';
+                let suffix = end < content.length ? '...' : '';
+                let text = content.substring(start, end);
+                snippet.innerHTML = `${prefix}${highlight(text)}${suffix}`;
+
+                div.append(title, snippet);
+                div.onmouseenter = () => {
+                    const currentItems = localSearchResults.querySelectorAll('.search-item');
+                    currentItems.forEach(i => i.classList.remove('selected'));
+                    div.classList.add('selected');
+                    selectedLocalSearchIndex = index;
+                };
+                div.onclick = () => selectLocalSearchResult(index);
+                fragment.appendChild(div);
+            });
+            localSearchResults.appendChild(fragment);
+        }
+
+        function selectLocalSearchResult(index) {
+            const match = localSearchFilteredMatches[index];
+            if (!match) return;
+            closeLocalSearch();
+            setTimeout(() => {
+                editor.focus();
+                editor.setSelectionRange(match.matchIndex, match.matchIndex);
+                updateTypewriterAndHighlight(true);
+                updateLineNumbers();
+            }, 150);
+        }
+
+        localSearchInput.addEventListener('input', (e) => renderLocalSearchResults(e.target.value));
+
+        localSearchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeLocalSearch();
+                return;
+            }
+
+            const items = localSearchResults.querySelectorAll('.search-item');
+            if (items.length === 0) return;
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                items[selectedLocalSearchIndex]?.classList.remove('selected');
+                if (selectedLocalSearchIndex === -1) {
+                    selectedLocalSearchIndex = 0;
+                } else {
+                    selectedLocalSearchIndex = (selectedLocalSearchIndex + 1) % items.length;
+                }
+                items[selectedLocalSearchIndex]?.classList.add('selected');
+                items[selectedLocalSearchIndex]?.scrollIntoView({ block: 'nearest' });
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                items[selectedLocalSearchIndex]?.classList.remove('selected');
+                if (selectedLocalSearchIndex <= 0) {
+                    selectedLocalSearchIndex = items.length - 1;
+                } else {
+                    selectedLocalSearchIndex = (selectedLocalSearchIndex - 1) % items.length;
+                }
+                items[selectedLocalSearchIndex]?.classList.add('selected');
+                items[selectedLocalSearchIndex]?.scrollIntoView({ block: 'nearest' });
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                const targetIndex = selectedLocalSearchIndex === -1 ? 0 : selectedLocalSearchIndex;
+                selectLocalSearchResult(targetIndex);
+            }
+        });
+
         searchInput.addEventListener('input', (e) => {
             clearTimeout(searchDebounceTimeout);
             searchDebounceTimeout = setTimeout(() => renderSearchResults(e.target.value), 80);
@@ -2227,6 +2401,11 @@
         searchToggle.addEventListener('click', openSearch);
 
         searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeSearch();
+                return;
+            }
+
             const items = searchResults.querySelectorAll('.search-item');
             if (items.length === 0) return;
 
@@ -2255,8 +2434,6 @@
                 // If nothing highlighted, pick the first one by default on Enter
                 const targetIndex = selectedSearchIndex === -1 ? 0 : selectedSearchIndex;
                 selectSearchResult(targetIndex);
-            } else if (e.key === 'Escape') {
-                closeSearch();
             }
         });
 
@@ -2265,10 +2442,17 @@
             const isMod = IS_MAC ? e.metaKey : e.ctrlKey;
             const primaryKey = e.key.toLowerCase();
 
-            // Search: Cmd+Shift+F or Ctrl+Shift+F
+            // Global Search: Cmd+Shift+F
             if (isMod && e.shiftKey && primaryKey === 'f') {
                 e.preventDefault();
                 openSearch();
+                return;
+            }
+
+            // Local Search: Cmd+F
+            if (isMod && !e.shiftKey && primaryKey === 'f') {
+                e.preventDefault();
+                openLocalSearch();
                 return;
             }
 
