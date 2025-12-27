@@ -1595,11 +1595,33 @@
             const panicMod = IS_MAC ? '⌘K' : 'Alt+P';
             const searchLabel = IS_MAC ? '⌘⇧F' : 'Ctrl+Shift+F';
 
+            // New Shortcuts Labels
+            const newMod = IS_MAC ? '⌘⇧⌫' : 'Ctrl+Shift+Del';
+            const previewMod = IS_MAC ? '⌘⇧P' : 'Ctrl+Shift+P';
+            const lockMod = IS_MAC ? '⌘⇧L' : 'Ctrl+Shift+L';
+            const shareMod = IS_MAC ? '⌘⇧S' : 'Ctrl+Shift+S';
+            const infoMod = IS_MAC ? '⌘/' : 'Ctrl+/';
+            const themeMod = IS_MAC ? '⌘⇧D' : 'Ctrl+Shift+D';
+            const clearMod = IS_MAC ? '⌘⇧⌫' : 'Ctrl+Shift+BS';
+            const copyMod = IS_MAC ? '⌘⌥C' : 'Ctrl+Alt+C';
+            const saveMod = IS_MAC ? '⌘S' : 'Ctrl+S';
+
             // Update Tooltips
             document.getElementById('panicBtn').setAttribute('data-title', `Panic Button (${panicMod})`);
             document.getElementById('zenToggle').setAttribute('data-title', `Zen Mode (${zenMod})`);
             document.getElementById('typewriterToggle').setAttribute('data-title', `Typewriter Scrolling (${typewriterMod})`);
             document.getElementById('searchToggle').setAttribute('data-title', `Global Search (${searchLabel})`);
+
+            document.getElementById('newBtn').setAttribute('data-title', `Start from Scratch (${newMod})`);
+            document.getElementById('previewToggle').setAttribute('data-title', `Toggle Preview (${previewMod})`);
+            document.getElementById('lockBtn').setAttribute('data-title', `Encryption (${lockMod})`);
+            document.getElementById('shareBtn').setAttribute('data-title', `Share Link (${shareMod})`);
+            document.getElementById('infoBtn').setAttribute('data-title', `Shortcuts & Info (${infoMod})`);
+            document.getElementById('themeToggle').setAttribute('data-title', `Toggle Theme (${themeMod})`);
+            document.getElementById('clearBtn').setAttribute('data-title', `Clear Editor (${clearMod})`);
+            document.getElementById('copyBtn').setAttribute('data-title', `Copy All (${copyMod})`);
+            document.getElementById('downloadBtn').setAttribute('data-title', `Download Markdown (${saveMod})`);
+
 
             // Update Info Modal
             const kbdElements = infoModal.querySelectorAll('kbd');
@@ -1608,6 +1630,8 @@
                 kbdElements[1].innerText = IS_MAC ? '⌘ + E' : 'Alt + Z';
                 kbdElements[2].innerText = IS_MAC ? '⌘ + J' : 'Alt + T';
                 kbdElements[3].innerText = IS_MAC ? '⌘ + K' : 'Alt + P';
+                // Note: We aren't updating the whole table here, just the quick ones shown.
+                // A full help table update would be better but out of current scope/size.
             }
 
             // Update Panic Exit Message
@@ -1842,7 +1866,65 @@
             if (isMod && e.shiftKey && primaryKey === 'f') {
                 e.preventDefault();
                 openSearch();
+                return;
             }
+
+            // Save (Download): Cmd+S
+            if (isMod && !e.shiftKey && !e.altKey && primaryKey === 's') {
+                e.preventDefault();
+                downloadBtn.click();
+                return;
+            }
+
+            // Toggle Preview: Cmd+Shift+P
+            if (isMod && e.shiftKey && primaryKey === 'p') {
+                e.preventDefault();
+                togglePreview();
+                return;
+            }
+
+            // Info (Shortcuts): Cmd+/
+            if (isMod && primaryKey === '/') {
+                e.preventDefault();
+                infoBtn.click();
+                return;
+            }
+
+            // Share: Cmd+Shift+S
+            if (isMod && e.shiftKey && primaryKey === 's') {
+                e.preventDefault();
+                shareBtn.click();
+                return;
+            }
+
+            // Encryption: Cmd+Shift+L
+            if (isMod && e.shiftKey && primaryKey === 'l') {
+                e.preventDefault();
+                lockBtn.click();
+                return;
+            }
+
+            // Start Scratch: Cmd+Shift+Delete
+            if (isMod && e.shiftKey && (e.key === 'Delete' || e.key === 'Backspace')) {
+                e.preventDefault();
+                newBtn.click();
+                return;
+            }
+
+            // Theme: Cmd+Shift+D
+            if (isMod && e.shiftKey && primaryKey === 'd') {
+                e.preventDefault();
+                themeToggle.click();
+                return;
+            }
+
+            // Copy All: Cmd+Alt+C
+            if (isMod && e.altKey && primaryKey === 'c') {
+                e.preventDefault();
+                copyBtn.click();
+                return;
+            }
+
 
             // Mode toggles: Cmd+Char on Mac (non-colliding), Alt+Char on others
             if (IS_MAC) {
