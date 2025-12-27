@@ -911,6 +911,13 @@
         let lastActivity = Date.now();
         let isPanicMode = false;
 
+        // --- Platform Detection ---
+        const IS_MAC = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+        const CTRL_CMD = IS_MAC ? '⌘' : 'Ctrl';
+        const ALT_OPT = IS_MAC ? '⌥' : 'Alt';
+        const CTRL_CMD_TEXT = IS_MAC ? 'Cmd' : 'Ctrl';
+        const ALT_OPT_TEXT = IS_MAC ? 'Opt' : 'Alt';
+
         // --- Elements ---
         const editor = document.getElementById('editor');
         const preview = document.getElementById('preview');
@@ -1511,8 +1518,32 @@
             }
             if (!isModalOpen) editor.focus();
 
+            updateShortcutLabels();
             checkExpiry();
         };
+
+        function updateShortcutLabels() {
+            // Update Tooltips
+            document.getElementById('panicBtn').setAttribute('data-title', `Panic Button (${ALT_OPT_TEXT}+P)`);
+            document.getElementById('zenToggle').setAttribute('data-title', `Zen Mode (${ALT_OPT_TEXT}+Z)`);
+            document.getElementById('typewriterToggle').setAttribute('data-title', `Typewriter Scrolling (${ALT_OPT_TEXT}+T)`);
+            document.getElementById('searchToggle').setAttribute('data-title', `Global Search (${CTRL_CMD_TEXT}+K)`);
+
+            // Update Info Modal
+            const kbdElements = infoModal.querySelectorAll('kbd');
+            kbdElements.forEach(kbd => {
+                let text = kbd.innerText;
+                text = text.replace('Cmd', CTRL_CMD_TEXT);
+                text = text.replace('Alt', ALT_OPT_TEXT);
+                kbd.innerText = text;
+            });
+
+            // Update Panic Exit Message
+            const panicExitMsg = panicOverlay.querySelector('p.mt-8.text-xs');
+            if (panicExitMsg) {
+                panicExitMsg.innerText = `Press ${ALT_OPT_TEXT} + P to exit workspace`;
+            }
+        }
 
         // --- Other UI Logic ---
 
@@ -1703,8 +1734,10 @@
 
         // Shortcuts
         window.addEventListener('keydown', (e) => {
+            const isMod = IS_MAC ? e.metaKey : e.ctrlKey;
+
             // Cmd+K or Ctrl+K for Search
-            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+            if (isMod && e.key === 'k') {
                 e.preventDefault();
                 openSearch();
             }
