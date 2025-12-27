@@ -1071,13 +1071,21 @@
         let tabToRenameId = null;
 
         function openRenameModal(id) {
-            const tab = appState.tabs.find(t => t.id === id);
+            const tab = findItemById(id);
             if (!tab) return;
 
             tabToRenameId = id;
-            renameInput.value = tab.title;
+            if (tab.title === "Untitled" || tab.title === "New Folder") {
+                renameInput.value = "";
+                renameInput.placeholder = tab.title;
+            } else {
+                renameInput.value = tab.title;
+            }
             renameModal.classList.remove('hidden');
             renameInput.focus();
+            if (renameInput.value) {
+                renameInput.select();
+            }
             isModalOpen = true;
         }
 
@@ -1088,10 +1096,11 @@
         }
 
         renameSubmit.addEventListener('click', () => {
-            if (tabToRenameId && renameInput.value.trim()) {
-                const tab = appState.tabs.find(t => t.id === tabToRenameId);
-                if (tab) {
-                    tab.title = renameInput.value.trim();
+            if (tabToRenameId) {
+                const tab = findItemById(tabToRenameId);
+                const newTitle = renameInput.value.trim();
+                if (tab && newTitle) {
+                    tab.title = newTitle;
                     renderTabs();
                     performSave();
                 }
@@ -1906,12 +1915,14 @@
             activateTab(id);
             renderTabs();
             performSave();
+            renameTab(id);
         });
 
         addFolderBtn.addEventListener('click', () => {
             const id = createTab("New Folder", "", "folder");
             renderTabs();
             performSave();
+            renameTab(id);
         });
 
         // Controls
