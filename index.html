@@ -2054,6 +2054,7 @@
                 previewToggle.classList.replace('fa-eye', 'fa-pen');
                 modeBadge.innerText = 'PREVIEW';
                 modeBadge.classList.replace('bg-gray-800', 'bg-blue-900');
+                updateTypewriterAndHighlight();
             } else {
                 editor.style.display = 'block';
                 previewWrapper.style.display = 'none';
@@ -2661,7 +2662,8 @@
         infoCloseBtn.addEventListener('click', closeInfo);
 
         function updateTypewriterAndHighlight(forceCenter = false) {
-            if (!isTypewriter && forceCenter !== true) {
+            // HIDE for preview or if mode is off (and not forced)
+            if (isPreviewMode || (!isTypewriter && forceCenter !== true)) {
                 if (lineHighlight) lineHighlight.style.display = 'none';
                 document.body.classList.remove('typewriter-active');
                 return;
