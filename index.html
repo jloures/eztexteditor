@@ -468,6 +468,46 @@
             background: #1e1e1e !important;
             filter: invert(0.9) hue-rotate(180deg);
         }
+
+        /* --- Zen Mode --- */
+        body.zen-mode header {
+            display: none !important;
+        }
+
+        body.zen-mode .sidebar {
+            display: none !important;
+        }
+
+        body.zen-mode main {
+            height: 100vh;
+        }
+
+        body.zen-mode #editor-container {
+            max-width: 800px;
+            margin: 0 auto;
+            border-left: 1px solid var(--border-color);
+            border-right: 1px solid var(--border-color);
+        }
+
+        /* --- Typewriter Scrolling --- */
+        .typewriter-active #editor {
+            padding-bottom: 50vh !important;
+        }
+
+        /* --- Global Search Modal --- */
+        #searchModal .search-item {
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+            border: 1px solid transparent;
+        }
+
+        #searchModal .search-item:hover,
+        #searchModal .search-item.selected {
+            background: rgba(59, 130, 246, 0.1);
+            border-color: var(--accent-color);
+        }
     </style>
 </head>
 
@@ -481,6 +521,9 @@
         </div>
 
         <div class="flex items-center gap-6">
+            <i id="zenToggle" class="fas fa-expand btn-icon" data-title="Zen Mode (Alt+Z)"></i>
+            <i id="typewriterToggle" class="fas fa-arrows-up-down btn-icon" data-title="Typewriter Scrolling"></i>
+            <i id="searchToggle" class="fas fa-search btn-icon" data-title="Global Search (Cmd+K)"></i>
             <i id="newBtn" class="fas fa-plus btn-icon" data-title="Start from Scratch"></i>
             <i id="previewToggle" class="fas fa-eye btn-icon" data-title="Toggle Preview (Markdown)"></i>
             <i id="lockBtn" class="fas fa-unlock btn-icon" data-title="Symmetric Password Encryption"></i>
@@ -587,6 +630,25 @@
         </div>
     </div>
 
+    <!-- Global Search Modal -->
+    <div id="searchModal" class="fixed inset-0 modal-overlay z-50 flex items-start justify-center hidden pt-24">
+        <div class="bg-[#1e1e1e] p-4 rounded-xl w-full max-w-2xl border border-gray-800 shadow-2xl">
+            <div class="flex items-center gap-3 border-b border-gray-800 pb-4 mb-4">
+                <i class="fas fa-search text-gray-400"></i>
+                <input type="text" id="searchInput"
+                    class="bg-transparent border-none outline-none text-white flex-1 text-lg"
+                    placeholder="Search notes... (Esc to close)">
+            </div>
+            <div id="searchResults" class="max-height-[50vh] overflow-y-auto space-y-2">
+                <!-- Results injected here -->
+            </div>
+            <div class="mt-4 pt-4 border-t border-gray-800 flex justify-between text-xs text-gray-500">
+                <span>↑↓ navigate • Enter to select • Esc to close</span>
+                <span id="searchStatus">0 results</span>
+            </div>
+        </div>
+    </div>
+
     <div id="saveIndicator" class="fixed bottom-6 right-10 meta-bar opacity-0 transition-opacity duration-500">
         URL UPDATED
     </div>
@@ -644,6 +706,15 @@
         const shareLinkArea = document.getElementById('shareLinkArea');
         const shareClose = document.getElementById('shareClose');
         const shareCopy = document.getElementById('shareCopy');
+
+        // Productivity
+        const zenToggle = document.getElementById('zenToggle');
+        const typewriterToggle = document.getElementById('typewriterToggle');
+        const searchToggle = document.getElementById('searchToggle');
+        const searchModal = document.getElementById('searchModal');
+        const searchInput = document.getElementById('searchInput');
+        const searchResults = document.getElementById('searchResults');
+        const searchStatus = document.getElementById('searchStatus');
 
         // Rename Modal Elements
         const renameModal = document.getElementById('renameModal');
@@ -1157,6 +1228,133 @@
         }
 
         previewToggle.addEventListener('click', togglePreview);
+
+        // --- Productivity Features ---
+
+        // 1. Zen Mode
+        function toggleZen() {
+            document.body.classList.toggle('zen-mode');
+            const isZen = document.body.classList.contains('zen-mode');
+            zenToggle.classList.toggle('btn-active', isZen);
+            zenToggle.className = isZen ? 'fas fa-compress btn-icon btn-active' : 'fas fa-expand btn-icon';
+        }
+        zenToggle.addEventListener('click', toggleZen);
+
+        // 2. Typewriter Scrolling
+        let isTypewriter = false;
+        function toggleTypewriter() {
+            isTypewriter = !isTypewriter;
+            document.body.classList.toggle('typewriter-active', isTypewriter);
+            typewriterToggle.classList.toggle('btn-active', isTypewriter);
+        }
+        typewriterToggle.addEventListener('click', toggleTypewriter);
+
+        editor.addEventListener('input', () => {
+            if (isTypewriter) {
+                const caretPos = editor.selectionStart;
+                const textBeforeCaret = editor.value.substring(0, caretPos);
+                const linesBeforeCaret = textBeforeCaret.split('\n').length;
+
+                const lineHeight = parseInt(getComputedStyle(editor).lineHeight);
+                const scrollPos = (linesBeforeCaret * lineHeight) - (editor.clientHeight / 2);
+
+                editor.scrollTo({
+                    top: scrollPos,
+                    behavior: 'smooth'
+                });
+            }
+        });
+
+        // 3. Global Search
+        let selectedSearchIndex = 0;
+        let searchFilteredTabs = [];
+
+        function openSearch() {
+            isModalOpen = true;
+            searchModal.classList.remove('hidden');
+            searchInput.value = '';
+            searchInput.focus();
+            renderSearchResults('');
+        }
+
+        function closeSearch() {
+            searchModal.classList.add('hidden');
+            isModalOpen = false;
+        }
+
+        function renderSearchResults(query) {
+            searchResults.innerHTML = '';
+            searchFilteredTabs = appState.tabs.filter(tab =>
+                tab.title.toLowerCase().includes(query.toLowerCase()) ||
+                tab.content.toLowerCase().includes(query.toLowerCase())
+            );
+
+            searchStatus.innerText = `${searchFilteredTabs.length} results`;
+            selectedSearchIndex = 0;
+
+            searchFilteredTabs.forEach((tab, index) => {
+                const div = document.createElement('div');
+                div.className = `search-item ${index === 0 ? 'selected' : ''}`;
+
+                const title = document.createElement('div');
+                title.className = 'font-bold text-gray-200';
+                title.innerText = tab.title;
+
+                const snippet = document.createElement('div');
+                snippet.className = 'text-sm text-gray-500 truncate';
+                const matchIndex = tab.content.toLowerCase().indexOf(query.toLowerCase());
+                const start = Math.max(0, matchIndex - 30);
+                snippet.innerText = tab.content.substring(start, start + 100);
+
+                div.append(title, snippet);
+                div.onclick = () => {
+                    activateTab(tab.id);
+                    closeSearch();
+                };
+                searchResults.appendChild(div);
+            });
+        }
+
+        searchInput.addEventListener('input', (e) => renderSearchResults(e.target.value));
+        searchToggle.addEventListener('click', openSearch);
+
+        searchInput.addEventListener('keydown', (e) => {
+            const items = searchResults.querySelectorAll('.search-item');
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                items[selectedSearchIndex]?.classList.remove('selected');
+                selectedSearchIndex = (selectedSearchIndex + 1) % items.length;
+                items[selectedSearchIndex]?.classList.add('selected');
+                items[selectedSearchIndex]?.scrollIntoView({ block: 'nearest' });
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                items[selectedSearchIndex]?.classList.remove('selected');
+                selectedSearchIndex = (selectedSearchIndex - 1 + items.length) % items.length;
+                items[selectedSearchIndex]?.classList.add('selected');
+                items[selectedSearchIndex]?.scrollIntoView({ block: 'nearest' });
+            } else if (e.key === 'Enter') {
+                if (searchFilteredTabs[selectedSearchIndex]) {
+                    activateTab(searchFilteredTabs[selectedSearchIndex].id);
+                    closeSearch();
+                }
+            } else if (e.key === 'Escape') {
+                closeSearch();
+            }
+        });
+
+        // Shortcuts
+        window.addEventListener('keydown', (e) => {
+            // Cmd+K or Ctrl+K for Search
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                e.preventDefault();
+                openSearch();
+            }
+            // Alt+Z for Zen Mode
+            if (e.altKey && e.key === 'z') {
+                e.preventDefault();
+                toggleZen();
+            }
+        });
 
         function updateCounts() {
             const text = editor.value.trim();
