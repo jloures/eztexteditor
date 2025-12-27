@@ -1415,17 +1415,25 @@
             const tab = findItemById(id);
             if (!tab || tab.type === 'folder') return;
 
+            updateCurrentTabState(); // Save old tab before switching
             appState.activeTabId = id;
             editor.value = tab.content || "";
+
+            renderTabs();
+            updateCounts();
+            updateLineNumbers();
+
+            // Restore cursor position if available
+            if (tab.cursorPos !== undefined) {
+                editor.setSelectionRange(tab.cursorPos, tab.cursorPos);
+            }
 
             if (isPreviewMode) {
                 renderMarkdownPreview();
             }
 
-            renderTabs();
-            updateCounts();
-            updateLineNumbers();
             editor.focus();
+            updateTypewriterAndHighlight(true);
         }
 
         function closeTab(e, id) {
@@ -1649,6 +1657,7 @@
             const tab = findItemById(appState.activeTabId);
             if (tab) {
                 tab.content = editor.value;
+                tab.cursorPos = editor.selectionStart;
             }
         }
 
@@ -1703,6 +1712,14 @@
 
             clearTimeout(saveTimeout);
             saveTimeout = setTimeout(async () => {
+                // Bundle current settings into state for persistence
+                appState.settings = {
+                    isPreviewMode,
+                    isZen: document.body.classList.contains('zen-mode'),
+                    isTypewriter,
+                    showLineNumbers
+                };
+
                 const dataToSave = JSON.stringify(appState);
 
                 try {
@@ -1755,6 +1772,32 @@
             // Ensure consistent defaults for new properties
             if (!appState.autoLockMinutes) appState.autoLockMinutes = 0;
             if (!appState.collapsedFolders) appState.collapsedFolders = [];
+
+            // Restore Settings if they exist
+            if (appState.settings) {
+                const s = appState.settings;
+
+                // 1. Preview Mode
+                if (s.isPreviewMode !== undefined && s.isPreviewMode !== isPreviewMode) {
+                    togglePreview();
+                }
+
+                // 2. Zen Mode
+                if (s.isZen !== undefined) {
+                    const currentlyZen = document.body.classList.contains('zen-mode');
+                    if (s.isZen !== currentlyZen) toggleZen();
+                }
+
+                // 3. Typewriter Mode
+                if (s.isTypewriter !== undefined && s.isTypewriter !== isTypewriter) {
+                    toggleTypewriter();
+                }
+
+                // 4. Line Numbers
+                if (s.showLineNumbers !== undefined && s.showLineNumbers !== showLineNumbers) {
+                    toggleLineNumbers();
+                }
+            }
 
             // Ensure at least one tab
             if (appState.tabs.length === 0) {
@@ -2018,7 +2061,9 @@
                 modeBadge.innerText = 'EDIT';
                 modeBadge.classList.replace('bg-blue-900', 'bg-gray-800');
                 editor.focus();
+                updateTypewriterAndHighlight(true);
             }
+            performSave();
         }
 
         previewToggle.addEventListener('click', togglePreview);
@@ -2067,6 +2112,7 @@
             if (showLineNumbers) {
                 updateLineNumbers();
             }
+            performSave();
         }
 
         linesToggle.addEventListener('click', toggleLineNumbers);
@@ -2094,6 +2140,7 @@
             } else {
                 hint.classList.remove('faded');
             }
+            performSave();
         }
         zenToggle.addEventListener('click', toggleZen);
 
@@ -2107,6 +2154,7 @@
             if (isTypewriter) {
                 setTimeout(() => updateTypewriterAndHighlight(true), 50);
             }
+            performSave();
         }
         typewriterToggle.addEventListener('click', toggleTypewriter);
 
