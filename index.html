@@ -1407,11 +1407,15 @@
                 const tab = findItemById(tabToRenameId);
                 const newTitle = renameInput.value.trim();
                 if (tab && newTitle) {
+                    if (newTitle.includes('/') || newTitle.includes('\\')) {
+                        alert("Names cannot contain slashes '/' or '\\'.");
+                        return;
+                    }
                     const parent = findParent(tabToRenameId);
                     const siblings = parent ? parent.children : appState.tabs;
                     const exists = siblings.some(s => s.id !== tabToRenameId && s.title.toLowerCase() === newTitle.toLowerCase());
                     if (exists) {
-                        alert("An item with this name already exists in this folder.");
+                        alert(`An item named "${newTitle}" already exists in this folder.`);
                         return;
                     }
                     tab.title = newTitle;
@@ -1421,6 +1425,7 @@
             }
             closeRenameModal();
         });
+
 
 
         renameCancel.addEventListener('click', closeRenameModal);
@@ -1690,7 +1695,28 @@
             return null;
         }
 
+        function isDescendant(parentId, childId) {
+            const parent = findItemById(parentId);
+            if (!parent || parent.type !== 'folder') return false;
+            function check(items) {
+                for (const item of items) {
+                    if (item.id === childId) return true;
+                    if (item.type === 'folder' && item.children) {
+                        if (check(item.children)) return true;
+                    }
+                }
+                return false;
+            }
+            return check(parent.children);
+        }
+
         function moveItem(sourceId, targetId, isTargetFolder) {
+            if (sourceId === targetId) return;
+            if (isDescendant(sourceId, targetId)) {
+                alert("Cannot move a folder into its own subfolder.");
+                return;
+            }
+
             const item = removeItemById(sourceId);
             if (!item) return;
 
@@ -1717,6 +1743,7 @@
                 insertAfter(item, targetId, targetList);
             }
         }
+
 
 
         function insertAfter(item, targetId, list) {
