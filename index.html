@@ -354,6 +354,15 @@
             word-break: break-all;
         }
 
+        #preview img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin: 20px auto;
+            display: block;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
         .prose {
             max-width: 100% !important;
             /* Force full width override */
@@ -1597,13 +1606,19 @@
         function renderMarkdownPreview() {
             let rawContent = editor.value;
 
-            // Support links with spaces: [text](link with spaces) -> [text](link%20with%20spaces)
-            rawContent = rawContent.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, text, url) => {
+            // 1. Support links & images with spaces: [text](link with space) or ![alt](img with space)
+            // This regex captures an optional ! prefix, then [text](url)
+            rawContent = rawContent.replace(/(!?\[([^\]]+)\])\(([^)]+)\)/g, (match, prefixWithText, text, url) => {
                 if (url.includes(' ') && !url.startsWith('<')) {
-                    return `[${text}](${url.trim().replace(/ /g, '%20')})`;
+                    return `${prefixWithText}(${url.trim().replace(/ /g, '%20')})`;
                 }
                 return match;
             });
+
+            // 2. Auto-embed plain image links (links on their own line or surrounded by spaces)
+            // Detects urls ending in image extensions that aren't already part of a Markdown link/image
+            const imgRegex = /(?<![!\[\(])(https?:\/\/\S+\.(?:png|jpg|jpeg|gif|webp|svg|avif))(?![\]\)])/gi;
+            rawContent = rawContent.replace(imgRegex, (match) => `![](${match})`);
 
             const previewEl = document.getElementById('preview');
             const tocList = document.getElementById('toc-list');
