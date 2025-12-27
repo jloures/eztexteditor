@@ -557,8 +557,10 @@
 
         <!-- Editor Area -->
         <div id="editor-container">
+            <div id="line-highlight" class="line-highlight"></div>
             <textarea id="editor" placeholder="Start typing..." spellcheck="false"></textarea>
-            <div id="preview-wrapper" style="display: none; height: 100%; overflow-y: auto; padding: 40px;">
+            <div id="preview-wrapper" class="flex-1"
+                style="display: none; height: 100%; overflow-y: auto; padding: 40px;">
                 <div id="toc-container">
                     <h4>On this page</h4>
                     <ul id="toc-list"></ul>
@@ -1166,22 +1168,11 @@
 
             // 2. Mermaid Rendering
             const mermaidBlocks = previewEl.querySelectorAll('code.language-mermaid');
-            mermaidBlocks.forEach((block, y) => {
-                const content = block.textContent;
-                const mermaidDiv = document.createElement('div');
-                mermaidDiv.className = 'mermaid';
-                mermaidDiv.id = `mermaid-${Date.now()}-${y}`;
-                block.parentElement.replaceWith(mermaidDiv);
-
-                try {
-                    mermaid.render(mermaidDiv.id, content).then(({ svg }) => {
-                        mermaidDiv.innerHTML = svg;
-                    });
-                } catch (e) {
-                    console.error("Mermaid error:", e);
-                    mermaidDiv.innerHTML = `<pre class="text-red-500">Mermaid Error: ${e.message}</pre>`;
-                }
-            });
+            if (mermaidBlocks.length > 0) {
+                mermaid.run({
+                    nodes: mermaidBlocks
+                });
+            }
 
             // 3. Table of Contents
             const headings = previewEl.querySelectorAll('h1, h2, h3');
