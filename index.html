@@ -606,9 +606,9 @@
             <div id="modeBadge" class="text-xs px-2 py-0.5 rounded bg-gray-800 text-gray-300">EDIT</div>
         </div>
 
-        <div class="flex items-center gap-6">
-            <i id="panicBtn" class="fas fa-ghost btn-icon text-orange-400" data-title="Panic Button (Alt+P)"></i>
+        <div class="flex items-center gap-4">
             <i id="securityBtn" class="fas fa-shield-halved btn-icon" data-title="Security Settings"></i>
+            <i id="panicBtn" class="fas fa-ghost btn-icon text-orange-400" data-title="Panic Button (Alt+P)"></i>
             <i id="zenToggle" class="fas fa-expand btn-icon" data-title="Zen Mode (Alt+Z)"></i>
             <i id="typewriterToggle" class="fas fa-arrows-up-down btn-icon" data-title="Typewriter Scrolling"></i>
             <i id="searchToggle" class="fas fa-search btn-icon" data-title="Global Search (Cmd+K)"></i>
@@ -616,6 +616,7 @@
             <i id="previewToggle" class="fas fa-eye btn-icon" data-title="Toggle Preview (Markdown)"></i>
             <i id="lockBtn" class="fas fa-unlock btn-icon" data-title="Symmetric Password Encryption"></i>
             <i id="shareBtn" class="fas fa-share-nodes btn-icon" data-title="Copy Share Link"></i>
+            <i id="infoBtn" class="fas fa-circle-info btn-icon" data-title="Shortcuts & Info"></i>
             <i id="themeToggle" class="fas fa-sun btn-icon" data-title="Toggle Dark Mode"></i>
             <i id="downloadBtn" class="fas fa-download btn-icon" data-title="Download contents"></i>
             <i id="copyBtn" class="fas fa-copy btn-icon" data-title="Copy Raw Text"></i>
@@ -774,7 +775,82 @@
         </div>
     </div>
 
-    <!-- Panic Overlay (Fake Page) -->
+    <!-- Info Modal -->
+    <div id="infoModal" class="fixed inset-0 modal-overlay z-50 flex items-center justify-center hidden">
+        <div
+            class="bg-[#1e1e1e] p-8 rounded-xl w-full max-w-2xl border border-gray-800 shadow-2xl overflow-y-auto max-h-[90vh]">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-2xl font-bold text-white">Help & Shortcuts</h3>
+                <i id="infoClose"
+                    class="fas fa-times cursor-pointer text-gray-400 hover:text-white transition text-xl"></i>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                    <h4 class="text-blue-400 font-bold uppercase text-xs tracking-widest mb-4">Keyboard Shortcuts</h4>
+                    <div class="space-y-3">
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-400">Global Search</span>
+                            <kbd class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs">Cmd +
+                                K</kbd>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-400">Zen Mode</span>
+                            <kbd class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs">Alt +
+                                Z</kbd>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-400">Typewriter Mode</span>
+                            <kbd class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs">Alt +
+                                T</kbd>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-400">Panic Mode</span>
+                            <kbd class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs">Alt +
+                                P</kbd>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-400">Indent Line</span>
+                            <kbd
+                                class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs">Tab</kbd>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-400">Close Modals</span>
+                            <kbd
+                                class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs">Esc</kbd>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <h4 class="text-orange-400 font-bold uppercase text-xs tracking-widest mb-4">Functionality</h4>
+                    <div class="space-y-4 text-sm text-gray-300">
+                        <div>
+                            <p class="font-bold text-white mb-1">Zero-Knowledge Storage</p>
+                            <p class="text-gray-400 text-xs leading-relaxed">Your data is never sent to a server.
+                                Everything is stored in the URL hash, keeping it private and local.</p>
+                        </div>
+                        <div>
+                            <p class="font-bold text-white mb-1">Markdown & Diagrams</p>
+                            <p class="text-gray-400 text-xs leading-relaxed">Full Markdown support including GFM. Use
+                                Mermaid.js for diagrams and Highlight.js for code blocks.</p>
+                        </div>
+                        <div>
+                            <p class="font-bold text-white mb-1">Encrypted Sessions</p>
+                            <p class="text-gray-400 text-xs leading-relaxed">Lock your notebook with AES-256 encryption.
+                                Only those with the password can read the content.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-8 pt-6 border-t border-gray-800 text-center">
+                <button id="infoCloseBtn"
+                    class="px-8 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition font-medium">Got
+                    it!</button>
+            </div>
+        </div>
+    </div>
     <div id="panicOverlay" class="fixed inset-0">
         <div class="panic-header">
             <div class="flex items-center gap-4">
@@ -885,6 +961,10 @@
         // Privacy & Security
         const securityBtn = document.getElementById('securityBtn');
         const panicBtn = document.getElementById('panicBtn');
+        const infoBtn = document.getElementById('infoBtn');
+        const infoModal = document.getElementById('infoModal');
+        const infoClose = document.getElementById('infoClose');
+        const infoCloseBtn = document.getElementById('infoCloseBtn');
         const securityModal = document.getElementById('securityModal');
         const autoLockInput = document.getElementById('autoLockInput');
         const expiryInput = document.getElementById('expiryInput');
@@ -1673,6 +1753,19 @@
             isModalOpen = false;
         });
 
+        infoBtn.addEventListener('click', () => {
+            infoModal.classList.remove('hidden');
+            isModalOpen = true;
+        });
+
+        const closeInfo = () => {
+            infoModal.classList.add('hidden');
+            isModalOpen = false;
+        };
+
+        infoClose.addEventListener('click', closeInfo);
+        infoCloseBtn.addEventListener('click', closeInfo);
+
         function updateTypewriterAndHighlight() {
             const caretPos = editor.selectionStart;
             const textBeforeCaret = editor.value.substring(0, caretPos);
@@ -1760,6 +1853,12 @@
                 else if (!renameModal.classList.contains('hidden')) {
                     if (document.activeElement !== renameInput) renameInput.focus();
                     // Enter handled by specific listener
+                }
+
+                if (e.key === 'Escape') {
+                    if (!infoModal.classList.contains('hidden')) closeInfo();
+                    if (!securityModal.classList.contains('hidden')) securityCancel.click();
+                    if (!passwordModal.classList.contains('hidden')) modalCancel.click();
                 }
             }
         });
