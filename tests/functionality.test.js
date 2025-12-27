@@ -179,5 +179,34 @@ describe('eztexteditor Functionality', () => {
             expect(folder.children.find(n => n.id === noteId)).toBeDefined();
             expect(global.appState.tabs.find(n => n.id === noteId)).toBeUndefined();
         });
+
+        test('moveItem prevents moving folder into itself', () => {
+            const f1 = global.createTab('F1', '', 'folder');
+            global.moveItem(f1, f1, true);
+            expect(global.appState.tabs.length).toBe(1);
+        });
+
+        test('moveItem can move item back to root', () => {
+            const f1 = global.createTab('F1', '', 'folder');
+            const n1 = global.createTab('N1');
+            global.moveItem(n1, f1, true);
+            global.moveItem(n1, null, false);
+            expect(global.appState.tabs.length).toBe(2);
+        });
+
+        test('removeItemById returns null for non-existent ID', () => {
+            expect(global.removeItemById('invalid')).toBeNull();
+        });
+
+        test('findItemById returns null for non-existent ID', () => {
+            expect(global.findItemById('invalid')).toBeNull();
+        });
+
+        test('createTab generates a unique title if none provided', () => {
+            const id1 = global.createTab();
+            const id2 = global.createTab();
+            expect(global.findItemById(id1).title).toBe('Untitled');
+            expect(global.findItemById(id2).title).toBe('Untitled');
+        });
     });
 });

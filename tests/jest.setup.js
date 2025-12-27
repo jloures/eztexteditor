@@ -8,11 +8,16 @@ global.TextDecoder = TextDecoder;
 const html = fs.readFileSync(path.resolve(__dirname, '../index.html'), 'utf8');
 
 // Mocking some browser APIs
+// Standard JSDOM location mock pattern
+global.scrollTo = jest.fn();
+global.alert = jest.fn();
+
 global.crypto.subtle = {
-    importKey: jest.fn(),
-    deriveKey: jest.fn(),
-    encrypt: jest.fn(),
-    decrypt: jest.fn(),
+    importKey: jest.fn().mockImplementation(() => Promise.resolve({})),
+    deriveKey: jest.fn().mockImplementation(() => Promise.resolve({})),
+    encrypt: jest.fn().mockImplementation(() => Promise.resolve(new ArrayBuffer(16))),
+    decrypt: jest.fn().mockImplementation(() => Promise.resolve(new ArrayBuffer(16))),
+    digest: jest.fn().mockImplementation(() => Promise.resolve(new ArrayBuffer(32))),
 };
 global.crypto.getRandomValues = jest.fn().mockImplementation((arr) => arr);
 global.scrollTo = jest.fn();
@@ -32,6 +37,25 @@ global.hljs = {
     highlightAuto: jest.fn((code) => ({ value: code })),
     getLanguage: jest.fn(() => true),
 };
+
+// Mocking Yjs
+global.Y = {
+    Doc: jest.fn().mockImplementation(() => ({
+        getText: jest.fn().mockImplementation(() => ({
+            toString: jest.fn().mockReturnValue(''),
+            insert: jest.fn(),
+            delete: jest.fn(),
+            observe: jest.fn(),
+        })),
+        destroy: jest.fn(),
+    })),
+    Text: jest.fn(),
+};
+
+global.WebrtcProvider = jest.fn().mockImplementation(() => ({
+    destroy: jest.fn(),
+    on: jest.fn(),
+}));
 
 // Mocking matchMedia
 Object.defineProperty(global, 'matchMedia', {
