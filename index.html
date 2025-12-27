@@ -21,6 +21,10 @@
 
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
     <script src="https://d3js.org/d3.v7.min.js"></script>
+
+    <!-- Driver.js for Tutorial -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.0.1/dist/driver.css" />
+    <script src="https://cdn.jsdelivr.net/npm/driver.js@1.0.1/dist/driver.js.iife.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500&display=swap');
 
@@ -1123,7 +1127,11 @@
                 </div>
             </div>
 
-            <div class="mt-8 pt-6 border-t border-gray-800 text-center">
+            <div class="mt-8 pt-6 border-t border-gray-800 flex justify-center gap-4">
+                <button id="startTutorialBtn"
+                    class="px-6 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 hover:text-white transition font-medium flex items-center gap-2 border border-gray-700">
+                    <i class="fas fa-play text-xs"></i> Start Tutorial
+                </button>
                 <button id="infoCloseBtn"
                     class="px-8 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition font-medium">Got
                     it!</button>
@@ -1263,6 +1271,7 @@
         const infoModal = document.getElementById('infoModal');
         const infoClose = document.getElementById('infoClose');
         const infoCloseBtn = document.getElementById('infoCloseBtn');
+        const startTutorialBtn = document.getElementById('startTutorialBtn');
         const securityModal = document.getElementById('securityModal');
         const autoLockInput = document.getElementById('autoLockInput');
         const expiryInput = document.getElementById('expiryInput');
@@ -3232,6 +3241,137 @@
                 performSave();
             }
         });
+
+        // --- Tutorial Logic ---
+        function startTutorial() {
+            // Close any open modals first
+            const infoModal = document.getElementById('infoModal');
+            const securityModal = document.getElementById('securityModal');
+            const searchModal = document.getElementById('searchModal');
+            const graphModal = document.getElementById('graphModal');
+
+            if (infoModal) infoModal.classList.add('hidden');
+            if (securityModal) securityModal.classList.add('hidden');
+            if (searchModal) searchModal.classList.add('hidden');
+            if (graphModal) graphModal.classList.add('hidden');
+            isModalOpen = false;
+
+            if (typeof window.driver === 'undefined' || !window.driver.js) {
+                console.error('Driver.js not loaded');
+                return;
+            }
+
+            const driver = window.driver.js.driver;
+            const driverObj = driver({
+                showProgress: true,
+                animate: true,
+                overlayColor: 'rgba(0, 0, 0, 0.75)',
+                steps: [
+                    {
+                        element: 'header',
+                        popover: {
+                            title: 'Welcome to EZ Text Editor',
+                            description: 'A secure, private Markdown editor where 100% of your data stays in your browser and URL.',
+                            side: "bottom",
+                            align: 'start'
+                        }
+                    },
+                    {
+                        element: '#sidebar',
+                        popover: {
+                            title: 'Note Sidebar',
+                            description: 'Manage your notes and folders here. All changes are saved instantly to the URL.',
+                            side: "right",
+                            align: 'start'
+                        }
+                    },
+                    {
+                        element: '#newBtn',
+                        popover: {
+                            title: 'Create New Note',
+                            description: 'Click here to start a fresh note or use the "+" button in the sidebar.',
+                            side: "bottom",
+                            align: 'center'
+                        }
+                    },
+                    {
+                        element: '#editor',
+                        popover: {
+                            title: 'The Editor',
+                            description: 'Write your Markdown here. We support GFM, LaTeX, Mermaid diagrams, and Wiki links [[like this]].',
+                            side: "bottom",
+                            align: 'center'
+                        }
+                    },
+                    {
+                        element: '#previewToggle',
+                        popover: {
+                            title: 'Live Preview',
+                            description: 'Toggle between the editor and a beautiful live preview of your Markdown.',
+                            side: "bottom",
+                            align: 'center'
+                        }
+                    },
+                    {
+                        element: '#securityBtn',
+                        popover: {
+                            title: 'Security Settings',
+                            description: 'Configure auto-lock and other security preferences to keep your notes private.',
+                            side: "bottom",
+                            align: 'center'
+                        }
+                    },
+                    {
+                        element: '#lockBtn',
+                        popover: {
+                            title: 'Encryption',
+                            description: 'Enable symmetric password encryption for your notes. This happens 100% locally.',
+                            side: "bottom",
+                            align: 'center'
+                        }
+                    },
+                    {
+                        element: '#shareBtn',
+                        popover: {
+                            title: 'Share & Sync',
+                            description: 'Since all data is in the URL, sharing this link shares the entire state of your editor!',
+                            side: "bottom",
+                            align: 'center'
+                        }
+                    },
+                    {
+                        element: '#infoBtn',
+                        popover: {
+                            title: 'Shortcuts & Help',
+                            description: 'You can always come back to this tutorial and see all keyboard shortcuts here.',
+                            side: "bottom",
+                            align: 'center'
+                        }
+                    },
+                ]
+            });
+
+            driverObj.drive();
+        }
+
+        if (startTutorialBtn) {
+            startTutorialBtn.addEventListener('click', startTutorial);
+        }
+
+        function initTutorial() {
+            const hasSeenTutorial = localStorage.getItem('ez_has_seen_tutorial');
+            if (!hasSeenTutorial) {
+                setTimeout(() => {
+                    if (!isModalOpen) {
+                        startTutorial();
+                        localStorage.setItem('ez_has_seen_tutorial', 'true');
+                    }
+                }, 1500);
+            }
+        }
+
+        // Run init tutorial after a short delay
+        initTutorial();
     </script>
 </body>
 
