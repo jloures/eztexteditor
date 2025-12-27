@@ -97,6 +97,18 @@ export function SearchModal({ tabs, isOpen, onClose, onNavigate, modalData, acti
         return text.replace(regex, '<span class="search-match-highlight">$1</span>');
     };
 
+    const handleSelect = (match) => {
+        if (!match) return;
+        if (match.matchIndex !== -1) {
+            window.__pendingSelection = { id: match.id, pos: match.matchIndex };
+            window.__highlightActive = true;
+            // Brief highlight period for the target line
+            setTimeout(() => { window.__highlightActive = false; }, 2000);
+        }
+        onNavigate(match.id);
+        if (typeof onClose === 'function') onClose();
+    };
+
     const handleKeyDown = (e) => {
         if (e.key === 'ArrowDown') {
             e.preventDefault();
@@ -107,10 +119,7 @@ export function SearchModal({ tabs, isOpen, onClose, onNavigate, modalData, acti
         } else if (e.key === 'Enter') {
             e.preventDefault();
             const match = results[selectedIndex === -1 ? 0 : selectedIndex];
-            if (match) {
-                onNavigate(match.id);
-                if (typeof onClose === 'function') onClose();
-            }
+            handleSelect(match);
         } else if (e.key === 'Escape') {
             if (typeof onClose === 'function') onClose();
         }
@@ -154,10 +163,7 @@ export function SearchModal({ tabs, isOpen, onClose, onNavigate, modalData, acti
                                 "search-item p-4 rounded-lg cursor-pointer mb-2 border border-transparent transition-all",
                                 index === selectedIndex && "selected"
                             )}
-                            onClick={() => {
-                                onNavigate(result.id);
-                                if (typeof onClose === 'function') onClose();
-                            }}
+                            onClick={() => handleSelect(result)}
                             onMouseEnter={() => setSelectedIndex(index)}
                         >
                             <div className="font-bold text-gray-200 flex items-center gap-2 mb-1">

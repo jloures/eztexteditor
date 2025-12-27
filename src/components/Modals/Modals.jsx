@@ -8,8 +8,11 @@ import { SecuritySettingsModal } from './SecuritySettingsModal';
 import { createPortal } from 'react-dom';
 
 const RenameModal = ({ initialValue, onConfirm, onCancel }) => {
-    const [value, setValue] = useState(initialValue || '');
-    useEffect(() => { setValue(initialValue || ''); }, [initialValue]);
+    const [value, setValue] = useState(initialValue === 'Untitled' || initialValue === 'New Folder' ? '' : (initialValue || ''));
+
+    useEffect(() => {
+        setValue(initialValue === 'Untitled' || initialValue === 'New Folder' ? '' : (initialValue || ''));
+    }, [initialValue]);
 
     const handleConfirm = () => {
         if (!value.trim()) return;
@@ -24,12 +27,15 @@ const RenameModal = ({ initialValue, onConfirm, onCancel }) => {
         <div className="modal-content">
             <p className="text-sm text-ez-meta mb-4 leading-relaxed">Enter a new name for this item. Slashes are not allowed.</p>
             <input
+                id="renameInput"
                 type="text"
                 className="w-full bg-black/40 border border-ez-border rounded-xl p-4 text-ez-text outline-none focus:border-ez-accent mb-8 font-medium transition-all"
                 value={value}
+                placeholder={initialValue}
                 onChange={e => setValue(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleConfirm()}
                 autoFocus
+                onFocus={(e) => e.target.select()}
             />
             <div className="flex justify-end gap-4">
                 <button onClick={onCancel} className="px-6 py-2 text-ez-meta hover:text-ez-text font-bold uppercase text-[10px] tracking-widest transition">Cancel</button>
@@ -143,8 +149,23 @@ export default function Modals({ actions, activeModal, closeModal, modalData, st
                     title={modalData?.id === 'ALL' ? "Purge Everything?" : "Remove Asset?"}
                     desc={modalData?.id === 'ALL' ? "Warning: This will PERMANENTLY erase all notes and folders from your current session." : "Warning: This action will delete the selected item and all nested data. This cannot be undone."}
                     onConfirm={() => {
-                        if (modalData?.id === 'ALL') actions.clearAll();
-                        else actions.deleteTab(modalData.id);
+                        if (modalData?.id === 'ALL') {
+                            actions.clearAll();
+                        } else {
+                            actions.deleteTab(modalData.id);
+                        }
+                        closeModal();
+                    }}
+                    onCancel={closeModal}
+                />
+            </ModalWrapper>
+
+            <ModalWrapper title="Clear Editor Content" isOpen={activeModal === 'confirm-clear'} onClose={closeModal}>
+                <ConfirmDeleteModal
+                    title="Clear Current Note?"
+                    desc="Warning: This will delete all text content in the current tab. The note itself will remain."
+                    onConfirm={() => {
+                        actions.updateTabContent(modalData.id, "");
                         closeModal();
                     }}
                     onCancel={closeModal}

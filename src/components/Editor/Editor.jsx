@@ -106,35 +106,49 @@ export default function Editor({ activeTabId, tabs, actions, settings }) {
     };
 
     const [highlightTop, setHighlightTop] = useState(40);
-    const updateHighlightPos = useCallback(() => {
-        if (!textareaRef.current || !settings.isTypewriterMode) return;
+
+    // Improved centering logic
+    const updateHighlightPos = useCallback((forceCenter = false) => {
+        if (!textareaRef.current || settings.isPreviewMode) return;
         const el = textareaRef.current;
-        const text = el.value.substring(0, el.selectionStart);
+        const caretPos = el.selectionStart;
+        const text = el.value.substring(0, caretPos);
         const lineNum = text.split('\n').length;
         const paddingTop = 40;
         const lineHeight = 30;
-        const newTop = paddingTop + (lineNum - 1) * lineHeight - el.scrollTop;
+
+        const newTop = paddingTop + (lineNum - 1) * lineHeight;
         setHighlightTop(newTop);
-    }, [settings.isTypewriterMode]);
 
-    // Typewriter Scrolling
-    useEffect(() => {
-        if (!settings.isTypewriterMode || !textareaRef.current || settings.isPreviewMode) return;
-        const el = textareaRef.current;
-        const text = el.value.substring(0, el.selectionStart);
-        const lineNum = text.split('\n').length;
-        const lineHeight = 30;
-        const paddingTop = 40;
-        const targetScroll = (lineNum - 1) * lineHeight + paddingTop - (el.clientHeight / 2) + (lineHeight / 2);
-
-        if (Math.abs(el.scrollTop - targetScroll) > 5) {
-            el.scrollTop = targetScroll;
+        if (settings.isTypewriterMode || forceCenter) {
+            const targetScroll = newTop - (el.clientHeight / 2) + (lineHeight / 2);
+            if (Math.abs(el.scrollTop - targetScroll) > 5 || forceCenter) {
+                el.scrollTop = targetScroll;
+            }
         }
-    }, [currentTab?.content, settings.isTypewriterMode, settings.isPreviewMode]);
+    }, [settings.isTypewriterMode, settings.isPreviewMode]);
+
+    // Handle initial focus and external navigation (search matches)
+    useEffect(() => {
+        if (textareaRef.current && !settings.isPreviewMode) {
+            // Check if there's a pending selection from search
+            const pending = window.__pendingSelection;
+            if (pending && pending.id === activeTabId) {
+                textareaRef.current.focus();
+                textareaRef.current.setSelectionRange(pending.pos, pending.pos);
+                updateHighlightPos(true);
+                delete window.__pendingSelection;
+            } else {
+                textareaRef.current.focus();
+                updateHighlightPos();
+            }
+        }
+    }, [activeTabId, settings.isPreviewMode, updateHighlightPos]);
 
     const handleInput = (e) => {
         actions.updateTabContent(activeTabId, e.target.value);
         updateWikiSuggestions(e.target);
+        updateHighlightPos();
     };
 
     const updateWikiSuggestions = (el) => {
@@ -235,6 +249,11 @@ export default function Editor({ activeTabId, tabs, actions, settings }) {
                 return `<pre><code class="hljs language-${language}">${hljs.highlight(code, { language }).value}</code></pre>`;
             } catch (e) { return `<pre><code>${code}</code></pre>`; }
         };
+        renderer.heading = (text, level) => {
+            const slug = text.toLowerCase().replace(/[^\w]+/g, '-');
+            return `<h${level} id="${slug}">${text}</h${level}>`;
+        };
+
         let processedContent = currentTab.content || '';
         processedContent = processedContent.replace(/\$\$([\s\S]+?)\$\$/g, (m, f) => {
             try { return katex.renderToString(f, { displayMode: true, throwOnError: false }); } catch (e) { return m; }
@@ -252,7 +271,7 @@ export default function Editor({ activeTabId, tabs, actions, settings }) {
         const rawMarkup = marked.parse(processedContent);
         const cleanMarkup = DOMPurify.sanitize(rawMarkup, {
             ADD_TAGS: ['span', 'div', 'math', 'annotation', 'semantics', 'mrow', 'mn', 'mo', 'mi', 'msup', 'sub', 'sup'],
-            ADD_ATTR: ['class', 'data-tab-name', 'target', 'style', 'xmlns', 'viewBox', 'd', 'fill', 'stroke']
+            ADD_ATTR: ['id', 'class', 'data-tab-name', 'target', 'style', 'xmlns', 'viewBox', 'd', 'fill', 'stroke']
         });
         return { __html: cleanMarkup };
     };
@@ -268,14 +287,21 @@ export default function Editor({ activeTabId, tabs, actions, settings }) {
                     style={{ lineHeight: '30px' }}
                 >
                     {Array.from({ length: lineCount }).map((_, i) => <div key={i}>{i + 1}</div>)}
-                    {settings.isTypewriterMode && <div className="h-[50vh]" />}
+                    {(settings.isTypewriterMode) && <div className="h-[50vh]" />}
                 </div>
             )}
 
             {!settings.isPreviewMode ? (
                 <>
-                    {settings.isTypewriterMode && (
-                        <div className="line-highlight" style={{ top: `${highlightTop}px`, display: 'block' }} />
+                    {(settings.isTypewriterMode || highlightTop !== 0) && (
+                        <div
+                            className="line-highlight"
+                            style={{
+                                top: `${highlightTop}px`,
+                                display: (settings.isTypewriterMode || (window.__highlightActive)) ? 'block' : 'none',
+                                transform: `translateY(-${textareaRef.current?.scrollTop || 0}px)`
+                            }}
+                        />
                     )}
                     <textarea
                         ref={textareaRef}
@@ -287,7 +313,7 @@ export default function Editor({ activeTabId, tabs, actions, settings }) {
                         value={currentTab.content || ''}
                         onChange={handleInput}
                         onScroll={handleScroll}
-                        onSelect={updateHighlightPos}
+                        onSelect={() => updateHighlightPos()}
                         onKeyDown={(e) => {
                             if (suggestions.length > 0) {
                                 if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedSugIdx(prev => (prev + 1) % suggestions.length); }
@@ -295,7 +321,13 @@ export default function Editor({ activeTabId, tabs, actions, settings }) {
                                 else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertWikiLink(suggestions[selectedSugIdx]); }
                                 else if (e.key === 'Escape') { setSuggestions([]); }
                             }
+                            // Update highlight position immediately on keydown for arrows
+                            if (e.key.startsWith('Arrow')) {
+                                setTimeout(() => updateHighlightPos(), 0);
+                            }
                         }}
+                        onKeyUp={() => updateHighlightPos()}
+                        onClick={() => updateHighlightPos()}
                         placeholder="Start typing..."
                         spellCheck="false"
                     />

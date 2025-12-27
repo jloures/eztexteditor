@@ -1,9 +1,59 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import { X } from 'lucide-react';
 import * as d3 from 'd3';
 
 export function GraphModal({ tabs, isOpen, onClose, onNavigate }) {
     const containerRef = useRef(null);
+
+    // Replicating legacy getItemPath for path-based linking
+    const getItemPath = useCallback((item, items = tabs) => {
+        const findParent = (id, list, p = null) => {
+            for (const it of list) {
+                if (it.id === id) return p;
+                if (it.children) {
+                    const res = findParent(id, it.children, it);
+                    if (res) return res;
+                }
+            }
+            return null;
+        };
+        const p = findParent(item.id, items);
+        if (p) {
+            return (getItemPath(p, items) + '/' + item.title).replace(/^\//, '');
+        }
+        return item.title;
+    }, [tabs]);
+
+    const findTabByPath = useCallback((path, items = tabs) => {
+        const parts = path.split('/');
+        let currentLevel = items;
+        let found = null;
+
+        for (let i = 0; i < parts.length; i++) {
+            const part = parts[i];
+            const match = currentLevel.find(it => it.title.toLowerCase() === part.toLowerCase());
+            if (!match) return null;
+            if (i === parts.length - 1 && match.type === 'note') {
+                found = match;
+            } else if (match.children) {
+                currentLevel = match.children;
+            } else {
+                return null;
+            }
+        }
+        return found;
+    }, [tabs]);
+
+    const findTabByTitle = useCallback((title, items = tabs) => {
+        for (const item of items) {
+            if (item.type === 'note' && item.title.toLowerCase() === title.toLowerCase()) return item;
+            if (item.children) {
+                const found = findTabByTitle(title, item.children);
+                if (found) return found;
+            }
+        }
+        return null;
+    }, [tabs]);
 
     useEffect(() => {
         if (!isOpen || !containerRef.current) return;
@@ -16,42 +66,26 @@ export function GraphModal({ tabs, isOpen, onClose, onNavigate }) {
         const nodes = [];
         const links = [];
 
-        // Helper to flatten and gather data
+        // Helper to flatten and gather data Exactly like legacy
         const gatherGraphData = (items) => {
             items.forEach(item => {
                 if (item.type === 'note') {
-                    // Use path or title as ID. Legacy used path logic but simple ID might suffice if title unique.
-                    // Legacy used: getItemPath(item). Let's stick to IDs for robustness, 
-                    // BUT legacy graph showed Titles. 
-                    nodes.push({ id: item.id, title: item.title });
+                    const fullPath = getItemPath(item);
+                    nodes.push({ id: fullPath, title: item.title, realId: item.id });
 
                     // Find links [[Link]]
                     const linkMatches = (item.content || '').matchAll(/\[\[([^\]]+)\]\]/g);
                     for (const match of linkMatches) {
-                        const targetTitle = match[1].trim();
-                        // Find target ID by title (inefficient but mimics legacy behavior roughly)
-                        // Ideally we have a lookup
-                        // We need to traverse entire state to find ID by title
-                        const targetNode = findNodeByTitle(tabs, targetTitle);
-                        if (targetNode) {
-                            links.push({ source: item.id, target: targetNode.id });
+                        const targetName = match[1].trim();
+                        const targetTab = targetName.includes('/') ? findTabByPath(targetName) : findTabByTitle(targetName);
+                        if (targetTab) {
+                            links.push({ source: fullPath, target: getItemPath(targetTab) });
                         }
                     }
                 } else if (item.children) {
                     gatherGraphData(item.children);
                 }
             });
-        };
-
-        const findNodeByTitle = (items, title) => {
-            for (const item of items) {
-                if (item.type === 'note' && item.title.toLowerCase() === title.toLowerCase()) return item;
-                if (item.children) {
-                    const found = findNodeByTitle(item.children, title);
-                    if (found) return found;
-                }
-            }
-            return null;
         };
 
         gatherGraphData(tabs);
@@ -64,18 +98,20 @@ export function GraphModal({ tabs, isOpen, onClose, onNavigate }) {
 
         const g = svg.append("g");
 
-        svg.call(d3.zoom().on("zoom", (event) => {
+        svg.call(d3.zoom().scaleExtent([0.1, 8]).on("zoom", (event) => {
             g.attr("transform", event.transform);
         }));
 
         const simulation = d3.forceSimulation(nodes)
-            .force("link", d3.forceLink(links).id(d => d.id).distance(100))
-            .force("charge", d3.forceManyBody().strength(-300))
-            .force("center", d3.forceCenter(width / 2, height / 2));
+            .force("link", d3.forceLink(links).id(d => d.id).distance(120))
+            .force("charge", d3.forceManyBody().strength(-400))
+            .force("center", d3.forceCenter(width / 2, height / 2))
+            .force("collision", d3.forceCollide().radius(50));
 
         const link = g.append("g")
-            .attr("stroke", "#555")
-            .attr("stroke-opacity", 0.6)
+            .attr("stroke", "#444")
+            .attr("stroke-opacity", 0.4)
+            .attr("stroke-width", 1.5)
             .selectAll("line")
             .data(links)
             .join("line");
@@ -84,7 +120,7 @@ export function GraphModal({ tabs, isOpen, onClose, onNavigate }) {
             .selectAll("g")
             .data(nodes)
             .join("g")
-            .attr("class", "node")
+            .attr("class", "node-group")
             .style("cursor", "pointer")
             .call(d3.drag()
                 .on("start", dragstarted)
@@ -92,16 +128,21 @@ export function GraphModal({ tabs, isOpen, onClose, onNavigate }) {
                 .on("end", dragended));
 
         node.append("circle")
-            .attr("r", 8)
-            .attr("fill", "#3b82f6");
+            .attr("r", 10)
+            .attr("fill", "#3b82f6")
+            .attr("stroke", "#1e40af")
+            .attr("stroke-width", 2)
+            .style("filter", "drop-shadow(0 0 10px rgba(59,130,246,0.3))");
 
         node.append("text")
-            .attr("dx", 12)
+            .attr("dx", 16)
             .attr("dy", ".35em")
             .text(d => d.title)
             .attr("fill", "#ccc")
-            .style("font-size", "10px")
-            .style("user-select", "none");
+            .style("font-size", "11px")
+            .style("font-weight", "600")
+            .style("user-select", "none")
+            .style("letter-spacing", "0.02em");
 
         simulation.on("tick", () => {
             link
@@ -132,25 +173,32 @@ export function GraphModal({ tabs, isOpen, onClose, onNavigate }) {
         }
 
         node.on("click", (event, d) => {
-            onNavigate(d.id);
+            onNavigate(d.realId);
             onClose();
         });
 
-    }, [isOpen, tabs, onNavigate, onClose]);
+    }, [isOpen, tabs, onNavigate, onClose, getItemPath, findTabByPath, findTabByTitle]);
 
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-ez-bg border border-ez-border rounded-xl shadow-2xl w-[90vw] h-[90vh] relative flex flex-col">
-                <div className="flex justify-between items-center p-4 border-b border-ez-border">
-                    <h3 className="text-xl font-bold text-ez-text">Notebook Graph View</h3>
-                    <button onClick={onClose} className="text-ez-meta hover:text-ez-text transition">
-                        <X size={24} />
+        <div className="fixed inset-0 bg-black/95 backdrop-blur-xl z-[60] flex items-center justify-center p-8 animate-in fade-in duration-300">
+            <div className="bg-ez-bg border border-ez-border rounded-3xl shadow-[0_30px_100px_rgba(0,0,0,0.8)] w-full h-full relative flex flex-col overflow-hidden animate-in zoom-in duration-300">
+                <div className="flex justify-between items-center p-8 border-b border-ez-border">
+                    <div className="flex items-center gap-4">
+                        <i className="fas fa-project-diagram text-blue-500 text-2xl"></i>
+                        <h3 className="text-2xl font-bold text-ez-text tracking-tight">Connected Intelligence</h3>
+                    </div>
+                    <button onClick={onClose} className="text-ez-meta hover:text-ez-text transition p-3 bg-ez-border/20 rounded-full">
+                        <X size={20} />
                     </button>
                 </div>
-                <div id="graphContainer" ref={containerRef} className="flex-1 bg-black/50 overflow-hidden relative"></div>
-                <p className="text-xs text-center text-ez-meta p-2">Zoom with mouse wheel, drag to pan and move nodes.</p>
+                <div id="graphContainer" ref={containerRef} className="flex-1 bg-black/40 relative"></div>
+                <div className="p-6 border-t border-ez-border bg-black/20 text-[10px] text-ez-meta flex justify-center gap-8 font-bold tracking-widest uppercase opacity-60">
+                    <span><i className="fas fa-mouse-pointer mr-2"></i> DRAG TO REORGANIZE</span>
+                    <span><i className="fas fa-search-plus mr-2"></i> SCROLL TO ZOOM</span>
+                    <span><i className="fas fa-hand-point-up mr-2"></i> CLICK TO NAVIGATE</span>
+                </div>
             </div>
         </div>
     );

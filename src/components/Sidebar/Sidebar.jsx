@@ -17,7 +17,10 @@ const flatten = (items, collapsed = [], depth = 0) => {
 export default function Sidebar({ tabs, activeId, collapsed, actions, onOpenModal }) {
     const flattenedItems = useMemo(() => flatten(tabs, collapsed), [tabs, collapsed]);
     const [activeIdDrag, setActiveIdDrag] = useState(null);
-    const [sidebarWidth, setSidebarWidth] = useState(300);
+    const [sidebarWidth, setSidebarWidth] = useState(() => {
+        const saved = localStorage.getItem('sidebarWidth');
+        return saved ? parseInt(saved) : 300;
+    });
     const [isResizing, setIsResizing] = useState(false);
 
     const sensors = useSensors(
@@ -35,12 +38,13 @@ export default function Sidebar({ tabs, activeId, collapsed, actions, onOpenModa
         };
         const handleMouseUp = () => {
             setIsResizing(false);
+            localStorage.setItem('sidebarWidth', sidebarWidth);
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
         };
         document.addEventListener('mousemove', handleMouseMove);
         document.addEventListener('mouseup', handleMouseUp);
-    }, []);
+    }, [sidebarWidth]);
 
     const handleDragStart = (event) => setActiveIdDrag(event.active.id);
     const handleDragEnd = (event) => {

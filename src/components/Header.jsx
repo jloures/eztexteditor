@@ -3,7 +3,7 @@ import { startTutorial } from '../utils/tutorial';
 
 const IS_MAC = typeof window !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 
-export default function Header({ settings, actions, onOpenModal, wordCount, isLocked }) {
+export default function Header({ settings, actions, onOpenModal, wordCount, isLocked, activeTabId }) {
 
     const zenMod = IS_MAC ? '⌘E' : 'Alt+Z';
     const typewriterMod = IS_MAC ? '⌘J' : 'Alt+T';
@@ -46,7 +46,6 @@ export default function Header({ settings, actions, onOpenModal, wordCount, isLo
             </div>
 
             <div className="flex items-center gap-4">
-                <IconBtn id="helpBtn" iconClass="fa-circle-question" onClick={startTutorial} title="Start Tutorial" colorClass="text-blue-400 opacity-80 hover:opacity-100" />
                 <IconBtn id="securityBtn" iconClass="fa-shield-halved" onClick={() => onOpenModal('security-settings')} title="Security Settings" />
                 <IconBtn id="panicBtn" iconClass="fa-ghost" onClick={actions.togglePanic} title={`Panic Button (${panicMod})`} colorClass="text-orange-400" />
                 <IconBtn
@@ -64,7 +63,7 @@ export default function Header({ settings, actions, onOpenModal, wordCount, isLo
                     title={`Typewriter Scrolling (${typewriterMod})`}
                 />
                 <IconBtn id="searchToggle" iconClass="fa-search" onClick={() => onOpenModal('search')} title={`Global Search (${searchLabel})`} />
-                <IconBtn id="newBtn" iconClass="fa-plus" onClick={() => actions.createTab('note')} title={`Start from Scratch (${newMod})`} />
+                <IconBtn id="newBtn" iconClass="fa-plus" onClick={() => onOpenModal('confirm-delete', { id: 'ALL' })} title={`Start Fresh (${newMod})`} />
                 <IconBtn
                     id="previewToggle"
                     iconClass={settings.isPreviewMode ? "fa-pen" : "fa-eye"}
@@ -97,7 +96,7 @@ export default function Header({ settings, actions, onOpenModal, wordCount, isLo
                 />
                 <IconBtn id="downloadBtn" iconClass="fa-download" onClick={actions.backupNotebook} title={`Backup Notebook (${saveMod})`} />
                 <IconBtn id="copyBtn" iconClass="fa-copy" onClick={actions.copyCurrentTab} title={`Copy All (${copyMod})`} />
-                <IconBtn id="clearBtn" iconClass="fa-trash-alt" onClick={() => onOpenModal('confirm-delete', { id: 'ALL' })} title={`Clear Editor (${clearMod})`} colorClass="text-red-400" />
+                <IconBtn id="clearBtn" iconClass="fa-trash-alt" onClick={() => onOpenModal('confirm-clear', { id: activeTabId })} title={`Clear Editor (${clearMod})`} colorClass="text-red-400" />
             </div>
         </header>
     );

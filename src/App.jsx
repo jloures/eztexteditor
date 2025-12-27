@@ -100,6 +100,17 @@ function App() {
   useEffect(() => {
     document.body.classList.toggle('zen-mode', state.settings.isZen);
     document.body.setAttribute('data-theme', state.settings.theme);
+
+    if (state.settings.isZen) {
+      const hint = document.querySelector('.zen-hint');
+      if (hint) {
+        hint.classList.remove('faded');
+        const timeout = setTimeout(() => {
+          hint.classList.add('faded');
+        }, 3000);
+        return () => clearTimeout(timeout);
+      }
+    }
   }, [state.settings.isZen, state.settings.theme]);
 
   // Handle Tutorial Auto-Start (Legacy logic)
