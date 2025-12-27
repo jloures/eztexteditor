@@ -2,8 +2,9 @@ import React from 'react';
 import {
     Ghost, Expand, Minimize, ArrowUp, ArrowDown, Search, Plus, Eye, EyeOff,
     Network, Lock, Unlock, Share2, Info, ListOrdered, Moon, Sun,
-    Download, Copy, Trash2, Shield
+    Download, Copy, Trash2, Shield, HelpCircle
 } from 'lucide-react';
+import { startTutorial } from '../utils/tutorial';
 
 export default function Header({ settings, actions, onOpenModal, wordCount }) {
 
@@ -16,13 +17,20 @@ export default function Header({ settings, actions, onOpenModal, wordCount }) {
     );
 
     const downloadContent = () => {
-        // Placeholder
-        console.log("Download triggered");
+        // Find active content - actually we don't have direct access to "content" here easily
+        // unless we pass it or find it. We have `settings` and `actions`, but content is in `tabs`.
+        // Ideally App passes `currentContent` or we find it.
+        // Let's assume we can trigger an action or use a prop.
+        // Modals.jsx has access to tabs. Header assumes it might? NO.
+        // We generally need to pass `activeTab` or `tabs` to Header to find content.
+        // OR we add `downloadTab` to actions.
+        // Let's use `actions.downloadTab()` if we add it, OR pass tabs here.
+        // Since we didn't add it to actions yet, let's pass `tabs` and `activeTabId` to Header.
+        actions.downloadCurrentTab();
     };
 
     const copyContent = () => {
-        // Placeholder
-        console.log("Copy triggered");
+        actions.copyCurrentTab();
     };
 
     const clearAll = () => {
@@ -41,14 +49,15 @@ export default function Header({ settings, actions, onOpenModal, wordCount }) {
 
     return (
         <header className="flex justify-between items-center px-4 py-3 border-b border-ez-border h-[60px] bg-ez-bg select-none shrink-0">
-            <div className="flex items-center gap-4 text-xs font-mono text-ez-meta">
+            <div id="word-count" className="flex items-center gap-4 text-xs font-mono text-ez-meta">
                 <div className="flex gap-2 items-center">
                     <span>{wordCount} WORDS</span>
                 </div>
                 <div className="px-2 py-0.5 rounded bg-gray-800 text-gray-300 text-[10px] font-bold tracking-wider">EDIT</div>
             </div>
 
-            <div className="flex items-center gap-1.5">
+            <div id="header-toolbar" className="flex items-center gap-1.5">
+                <IconBtn icon={HelpCircle} onClick={startTutorial} title="Start Tutorial" />
                 <IconBtn icon={Shield} onClick={() => onOpenModal('security')} title="Security Settings" />
                 <IconBtn icon={Ghost} onClick={actions.togglePanic} title="Panic Mode (Alt+P)" colorClass="text-orange-400 hover:text-orange-300" />
                 <IconBtn

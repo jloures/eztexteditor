@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { X, Trash2, AlertTriangle, Lock, KeyRound } from 'lucide-react';
 import { SearchModal } from './SearchModal';
+import { GraphModal } from './GraphModal';
+import { ShareModal } from './ShareModal';
+import { InfoModal } from './InfoModal';
 import { createPortal } from 'react-dom';
 
 // Assuming these new components are defined elsewhere or will be created
@@ -160,6 +163,23 @@ export default function Modals({ actions, activeModal, closeModal, modalData, ta
                 onClose={closeModal}
                 tabs={tabs}
                 onNavigate={actions.activateTab}
+            />
+
+            <GraphModal
+                isOpen={activeModal === 'graph'}
+                onClose={closeModal}
+                tabs={tabs}
+                onNavigate={actions.activateTab}
+            />
+
+            <ShareModal
+                isOpen={activeModal === 'share'}
+                onClose={closeModal}
+            />
+
+            <InfoModal
+                isOpen={activeModal === 'info'}
+                onClose={closeModal}
             />
         </>
     );

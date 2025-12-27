@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { encodeToUrl, decodeFromUrl, encryptText, deriveKey } from '../utils/persistence';
 
 const DEBOUNCE_MS = 500;
@@ -7,12 +7,14 @@ const INITIAL_STATE = {
     tabs: [],
     activeTabId: null,
     collapsedFolders: [],
+    autoLockMinutes: 0,
+    expiryDate: null,
     settings: {
         isPreviewMode: false,
         isZen: false,
         showLineNumbers: false,
         isTypewriterMode: false,
-        theme: 'dark' // 'dark' or 'light'
+        theme: 'dark'
     }
 };
 
@@ -30,6 +32,9 @@ export function useAppState() {
     const [modalData, setModalData] = useState(null);
     const [showPanic, setShowPanic] = useState(false);
 
+    // Inactivity Timer
+    const lastActivity = useRef(Date.now());
+
     const openModal = useCallback((name, data = null) => {
         setActiveModal(name);
         setModalData(data);
@@ -40,7 +45,7 @@ export function useAppState() {
         setModalData(null);
     }, []);
 
-    // Initial Load
+    // ... Init logic (kept mostly same but ensure autoLockMinutes is respected) ...
     useEffect(() => {
         const init = async () => {
             const hash = window.location.hash.substring(1);
@@ -54,9 +59,10 @@ export function useAppState() {
                 const decoded = await decodeFromUrl(hash);
                 try {
                     const parsed = JSON.parse(decoded);
-                    // Migration check
                     if (!parsed.tabs) throw new Error("Legacy");
-                    setState(prev => ({ ...prev, ...parsed, settings: { ...prev.settings, ...parsed.settings } }));
+                    // Ensure defaults
+                    const merged = { ...INITIAL_STATE, ...parsed, settings: { ...INITIAL_STATE.settings, ...parsed.settings } };
+                    setState(merged);
                 } catch (e) {
                     const id = generateId();
                     setState({
@@ -66,6 +72,7 @@ export function useAppState() {
                     });
                 }
             } else {
+                // Empty start
                 if (state.tabs.length === 0) {
                     const id = generateId();
                     setState({
@@ -80,29 +87,52 @@ export function useAppState() {
         init();
     }, []);
 
+    // Activity Tracking for AutoLock
+    useEffect(() => {
+        const reset = () => lastActivity.current = Date.now();
+        window.addEventListener('mousemove', reset);
+        window.addEventListener('keydown', reset);
+        window.addEventListener('mousedown', reset);
+
+        const interval = setInterval(() => {
+            if (state.autoLockMinutes > 0 && !isLocked && !activeModal) { // Don't lock if modal open (like unlock modal)
+                const elapsed = (Date.now() - lastActivity.current) / 1000 / 60;
+                if (elapsed >= state.autoLockMinutes) {
+                    location.reload(); // Lock by reload
+                }
+            }
+            // Expiry Check
+            if (state.expiryDate) {
+                const expiry = new Date(state.expiryDate).getTime();
+                if (Date.now() > expiry) {
+                    alert("This note has expired and will self-destruct.");
+                    window.location.hash = '';
+                    location.reload();
+                }
+            }
+        }, 10000);
+
+        return () => {
+            window.removeEventListener('mousemove', reset);
+            window.removeEventListener('keydown', reset);
+            window.removeEventListener('mousedown', reset);
+            clearInterval(interval);
+        };
+    }, [state.autoLockMinutes, state.expiryDate, isLocked, activeModal]);
+
+
     // Action creators
     const activateTab = useCallback((id) => setState(p => ({ ...p, activeTabId: id })), []);
+    const updateSettings = useCallback((update) => setState(p => ({ ...p, settings: { ...p.settings, ...update } })), []);
 
-    const updateSettings = useCallback((update) => {
-        setState(p => ({ ...p, settings: { ...p.settings, ...update } }));
-    }, []);
-
-    const toggleFolder = useCallback((id) => {
-        setState(prev => {
-            const isCollapsed = prev.collapsedFolders.includes(id);
-            return {
-                ...prev,
-                collapsedFolders: isCollapsed
-                    ? prev.collapsedFolders.filter(c => c !== id)
-                    : [...prev.collapsedFolders, id]
-            };
-        });
-    }, []);
-
+    // ... toggleFolder, createTab, etc (same) ...
+    // Re-implementing simplified for the diff apply
     const createTab = useCallback((type = 'note', parentId = null) => {
         const id = generateId();
         setState(prev => {
             const newState = clone(prev);
+            // ... (Logic same as before, omitted for brevity in plan but WILL include in file write)
+            // Actually I'm writing the whole file so I should include it.
             let targetList = newState.tabs;
             if (parentId) {
                 const findParent = (items) => {
@@ -126,13 +156,7 @@ export function useAppState() {
                 finalTitle = `${baseTitle} ${++counter}`;
             }
 
-            const newItem = {
-                id,
-                title: finalTitle,
-                content: '',
-                type,
-                children: type === 'folder' ? [] : undefined
-            };
+            const newItem = { id, title: finalTitle, content: '', type, children: type === 'folder' ? [] : undefined };
             targetList.push(newItem);
             if (type === 'note') newState.activeTabId = id;
             return newState;
@@ -145,10 +169,7 @@ export function useAppState() {
             const newState = clone(prev);
             const update = (items) => {
                 for (const item of items) {
-                    if (item.id === id) {
-                        item.content = content;
-                        return true;
-                    }
+                    if (item.id === id) { item.content = content; return true; }
                     if (item.children) if (update(item.children)) return true;
                 }
                 return false;
@@ -163,10 +184,7 @@ export function useAppState() {
             const newState = clone(prev);
             const renameRecursive = (items) => {
                 for (const item of items) {
-                    if (item.id === id) {
-                        item.title = newTitle;
-                        return true;
-                    }
+                    if (item.id === id) { item.title = newTitle; return true; }
                     if (item.children && renameRecursive(item.children)) return true;
                 }
                 return false;
@@ -177,42 +195,54 @@ export function useAppState() {
     }, []);
 
     const deleteTab = useCallback((id) => {
-        // ... (Same delete logic)
         setState(prev => {
             const newState = clone(prev);
+            if (id === 'ALL') {
+                // Clear All Logic
+                newState.tabs = [];
+                newState.activeTabId = null;
+                // Add one new tab
+                const newId = generateId();
+                newState.tabs.push({ id: newId, title: 'Untitled', content: '', type: 'note' });
+                newState.activeTabId = newId;
+                return newState;
+            }
+
             const removeRecursive = (items) => {
                 const idx = items.findIndex(i => i.id === id);
-                if (idx !== -1) {
-                    items.splice(idx, 1);
-                    return true;
-                }
-                for (const item of items) {
-                    if (item.children && removeRecursive(item.children)) return true;
-                }
+                if (idx !== -1) { items.splice(idx, 1); return true; }
+                for (const item of items) { if (item.children && removeRecursive(item.children)) return true; }
                 return false;
             };
             removeRecursive(newState.tabs);
 
             if (prev.activeTabId === id) {
-                const findFirstNote = (items) => {
+                const findFirst = (items) => {
                     for (const item of items) {
                         if (item.type === 'note') return item.id;
-                        if (item.children) {
-                            const res = findFirstNote(item.children);
-                            if (res) return res;
-                        }
+                        if (item.children) { const res = findFirst(item.children); if (res) return res; }
                     }
                     return null;
                 };
-                newState.activeTabId = findFirstNote(newState.tabs);
+                newState.activeTabId = findFirst(newState.tabs);
             }
             return newState;
         });
     }, []);
 
-    // Drag and Drop
+    const toggleFolder = useCallback((id) => {
+        setState(prev => {
+            const isCollapsed = prev.collapsedFolders.includes(id);
+            return {
+                ...prev,
+                collapsedFolders: isCollapsed ? prev.collapsedFolders.filter(c => c !== id) : [...prev.collapsedFolders, id]
+            };
+        });
+    }, []);
+
     const moveItem = useCallback((activeId, overId) => {
         setState(prev => {
+            // ... (Logic kept SAME as existing)
             const newState = clone(prev);
             const findItemAndParent = (items, id, parent = null) => {
                 for (const item of items) {
@@ -241,6 +271,48 @@ export function useAppState() {
         });
     }, []);
 
+    // NEW: Download & Copy
+    const downloadCurrentTab = useCallback(() => {
+        setState(current => {
+            const find = (items) => {
+                for (const i of items) {
+                    if (i.id === current.activeTabId) return i;
+                    if (i.children) { const f = find(i.children); if (f) return f; }
+                }
+                return null;
+            };
+            const tab = find(current.tabs);
+            if (tab) {
+                const blob = new Blob([tab.content || ''], { type: 'text/markdown' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${tab.title}.md`;
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+            return current;
+        });
+    }, []);
+
+    const copyCurrentTab = useCallback(() => {
+        setState(current => {
+            const find = (items) => {
+                for (const i of items) {
+                    if (i.id === current.activeTabId) return i;
+                    if (i.children) { const f = find(i.children); if (f) return f; }
+                }
+                return null;
+            };
+            const tab = find(current.tabs);
+            if (tab && tab.content) {
+                navigator.clipboard.writeText(tab.content);
+                // Ideally show toast
+            }
+            return current;
+        });
+    }, []);
+
     const setEncryptionKeyAction = useCallback((password) => {
         setEncryptionKey(password);
         setIsLocked(false);
@@ -248,7 +320,7 @@ export function useAppState() {
 
     const togglePanic = useCallback(() => setShowPanic(p => !p), []);
 
-    // Persistence Effect ...
+    // Persistence Effect
     useEffect(() => {
         if (!isLoaded || isLocked) return;
         const handler = setTimeout(async () => {
@@ -283,7 +355,8 @@ export function useAppState() {
             updateSettings,
             setEncryptionKey: setEncryptionKeyAction,
             togglePanic,
-            setState // Exposed for reset
+            downloadCurrentTab,
+            copyCurrentTab
         }
     };
 }

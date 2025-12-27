@@ -40,7 +40,7 @@ export default function Sidebar({ tabs, activeId, collapsed, actions, onOpenModa
     };
 
     return (
-        <div className="w-[260px] flex-shrink-0 border-r border-ez-border flex flex-col bg-ez-bg h-full">
+        <div id="sidebar" className="w-[260px] flex-shrink-0 border-r border-ez-border flex flex-col bg-ez-bg h-full">
             <div className="p-4 text-xs font-bold text-ez-meta tracking-widest uppercase flex justify-between items-center border-b border-ez-border h-[50px]">
                 <span>NOTEBOOK</span>
                 <button className="hover:text-ez-text"><i className="fas fa-bars"></i></button>

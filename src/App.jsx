@@ -4,9 +4,14 @@ import Sidebar from './components/Sidebar/Sidebar';
 import Header from './components/Header';
 import Editor from './components/Editor/Editor';
 import Modals from './components/Modals/Modals';
+import { PanicOverlay } from './components/PanicOverlay';
 
 function App() {
   const { state, actions, isLoaded, isLocked, modal, showPanic } = useAppState();
+
+  // Legacy support for panic exit shortcut if needed specifically handled here or in component
+  // We already have global keyboard listener in App, but let's ensure it toggles.
+  // The App listeners call actions.togglePanic.
 
   // Global Effects
   useEffect(() => {
@@ -87,18 +92,6 @@ function App() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-ez-bg text-ez-text font-sans">
-      {/* Panic Overlay */}
-      {showPanic && (
-        <div className="fixed inset-0 z-[9999] bg-gray-100 flex items-center justify-center flex-col">
-          <div className="w-full h-12 bg-white border-b border-gray-300 mb-8" />
-          <div className="max-w-2xl text-gray-800 text-center">
-            <h1 className="text-2xl font-bold mb-4">Work in Progress</h1>
-            <p>Nothing to see here.</p>
-            <button onClick={actions.togglePanic} className="mt-8 px-4 py-2 text-sm text-gray-500 hover:text-gray-900 border border-gray-300 rounded">Exit</button>
-          </div>
-        </div>
-      )}
-
       <Header
         settings={state.settings}
         actions={actions}
@@ -129,6 +122,8 @@ function App() {
         actions={actions}
         tabs={state.tabs}
       />
+
+      <PanicOverlay visible={showPanic} />
     </div>
   );
 }
