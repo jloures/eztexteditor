@@ -403,7 +403,26 @@
             height: 100%;
             position: relative;
             display: flex;
-            flex-direction: column;
+            flex-direction: row;
+            /* Horizontal layout for gutter + editor */
+            overflow: hidden;
+        }
+
+        .line-numbers-gutter {
+            width: 50px;
+            padding: 40px 10px 40px 0;
+            border-right: 1px solid var(--border-color);
+            background: rgba(128, 128, 128, 0.03);
+            color: var(--meta-color);
+            text-align: right;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            user-select: none;
+            overflow: hidden;
+            display: none;
+            /* Hide by default */
+            flex-shrink: 0;
         }
 
         /* Adjust editor padding for full width feel */
@@ -418,6 +437,7 @@
         }
 
         #editor {
+            flex: 1;
             resize: none;
             border: none;
             outline: none;
@@ -760,6 +780,7 @@
             <i id="lockBtn" class="fas fa-unlock btn-icon" data-title="Symmetric Password Encryption"></i>
             <i id="shareBtn" class="fas fa-share-nodes btn-icon" data-title="Copy Share Link"></i>
             <i id="infoBtn" class="fas fa-circle-info btn-icon" data-title="Shortcuts & Info"></i>
+            <i id="linesToggle" class="fas fa-list-ol btn-icon" data-title="Toggle Line Numbers"></i>
             <i id="themeToggle" class="fas fa-sun btn-icon" data-title="Toggle Dark Mode"></i>
             <i id="downloadBtn" class="fas fa-download btn-icon" data-title="Download contents"></i>
             <i id="copyBtn" class="fas fa-copy btn-icon" data-title="Copy Raw Text"></i>
@@ -794,6 +815,7 @@
 
         <!-- Editor Area -->
         <div id="editor-container">
+            <div id="line-numbers" class="line-numbers-gutter"></div>
             <div id="line-highlight" class="line-highlight"></div>
             <textarea id="editor" placeholder="Start typing..." spellcheck="false"></textarea>
             <div id="wikiSuggestion"></div>
@@ -1009,6 +1031,11 @@
                                     class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs font-mono">⌘⌥C</kbd>
                             </div>
                             <div class="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
+                                <span class="text-gray-400">Line Numbers</span>
+                                <kbd id="kbd-lines"
+                                    class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs font-mono">⌥L</kbd>
+                            </div>
+                            <div class="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
                                 <span class="text-gray-400">Start Scratch</span>
                                 <kbd id="kbd-new"
                                     class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs font-mono">⌘⇧⌫</kbd>
@@ -1195,6 +1222,7 @@
         const securityBtn = document.getElementById('securityBtn');
         const panicBtn = document.getElementById('panicBtn');
         const infoBtn = document.getElementById('infoBtn');
+        const linesToggle = document.getElementById('linesToggle');
         const infoModal = document.getElementById('infoModal');
         const infoClose = document.getElementById('infoClose');
         const infoCloseBtn = document.getElementById('infoCloseBtn');
@@ -1359,6 +1387,7 @@
 
             renderTabs();
             updateCounts();
+            updateLineNumbers();
             editor.focus();
         }
 
@@ -1788,6 +1817,7 @@
             const copyMod = IS_MAC ? '⌘⌥C' : 'Ctrl+Alt+C';
             const saveMod = IS_MAC ? '⌘S' : 'Ctrl+S';
             const graphMod = IS_MAC ? '⌥G' : 'Alt+G';
+            const linesMod = IS_MAC ? '⌥L' : 'Alt+L';
 
             // Update Tooltips
             document.getElementById('panicBtn').setAttribute('data-title', `Panic Button (${panicMod})`);
@@ -1805,6 +1835,7 @@
             document.getElementById('copyBtn').setAttribute('data-title', `Copy All (${copyMod})`);
             document.getElementById('downloadBtn').setAttribute('data-title', `Download Markdown (${saveMod})`);
             document.getElementById('graphBtn').setAttribute('data-title', `Graph View (${graphMod})`);
+            document.getElementById('linesToggle').setAttribute('data-title', `Line Numbers (${linesMod})`);
 
 
             // Update Info Modal KBDs
@@ -1821,6 +1852,7 @@
             if (document.getElementById('kbd-theme')) document.getElementById('kbd-theme').innerText = themeMod;
             if (document.getElementById('kbd-copy')) document.getElementById('kbd-copy').innerText = copyMod;
             if (document.getElementById('kbd-new')) document.getElementById('kbd-new').innerText = newMod;
+            if (document.getElementById('kbd-lines')) document.getElementById('kbd-lines').innerText = linesMod;
 
             // Update Panic Exit Message
             const panicExitMsg = panicOverlay.querySelector('p.mt-8.text-xs');
@@ -1948,6 +1980,40 @@
         }
 
         previewToggle.addEventListener('click', togglePreview);
+
+        // --- Line Numbers Logic ---
+        const lineNumbers = document.getElementById('line-numbers');
+        let showLineNumbers = false;
+
+        function updateLineNumbers() {
+            if (!showLineNumbers) return;
+            const lines = editor.value.split('\n');
+            const lineCount = lines.length;
+            let numbers = '';
+            for (let i = 1; i <= lineCount; i++) {
+                numbers += i + '<br>';
+            }
+            lineNumbers.innerHTML = numbers;
+            syncGutterScroll();
+        }
+
+        function syncGutterScroll() {
+            if (showLineNumbers) {
+                lineNumbers.scrollTop = editor.scrollTop;
+            }
+        }
+
+        function toggleLineNumbers() {
+            showLineNumbers = !showLineNumbers;
+            lineNumbers.style.display = showLineNumbers ? 'block' : 'none';
+            linesToggle.classList.toggle('btn-active', showLineNumbers);
+            if (showLineNumbers) {
+                updateLineNumbers();
+            }
+        }
+
+        linesToggle.addEventListener('click', toggleLineNumbers);
+        editor.addEventListener('scroll', syncGutterScroll);
 
         // --- Productivity Features ---
 
@@ -2106,6 +2172,7 @@
 
                     editor.scrollTop = top - editor.clientHeight / 2 + lineHeight / 2;
                     updateTypewriterAndHighlight();
+                    updateLineNumbers();
                 }, 50);
             }
         }
@@ -2202,6 +2269,12 @@
                 return;
             }
 
+
+            if (e.altKey && primaryKey === 'l') {
+                e.preventDefault();
+                toggleLineNumbers();
+                return;
+            }
 
             // Graph View: Alt+G
             if (e.altKey && primaryKey === 'g') {
@@ -2389,6 +2462,7 @@
             performSave();
             updateTypewriterAndHighlight();
             updateWikiSuggestions();
+            updateLineNumbers();
         });
 
         editor.addEventListener('keydown', (e) => {
