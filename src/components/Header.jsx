@@ -5,7 +5,7 @@ import {
     Download, Copy, Trash2, Shield
 } from 'lucide-react';
 
-export default function Header({ settings, actions, onOpenModal }) {
+export default function Header({ settings, actions, onOpenModal, wordCount }) {
 
     // Combining Arrows for Typewriter icon approximation
     const TypewriterIcon = () => (
@@ -43,7 +43,7 @@ export default function Header({ settings, actions, onOpenModal }) {
         <header className="flex justify-between items-center px-4 py-3 border-b border-ez-border h-[60px] bg-ez-bg select-none shrink-0">
             <div className="flex items-center gap-4 text-xs font-mono text-ez-meta">
                 <div className="flex gap-2 items-center">
-                    <span>0 WORDS</span>
+                    <span>{wordCount} WORDS</span>
                 </div>
                 <div className="px-2 py-0.5 rounded bg-gray-800 text-gray-300 text-[10px] font-bold tracking-wider">EDIT</div>
             </div>

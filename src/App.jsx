@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useAppState } from './hooks/useAppState';
 import Sidebar from './components/Sidebar/Sidebar';
 import Header from './components/Header';
@@ -62,6 +62,26 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [actions, modal, state.settings.isZen]);
 
+  // Calculate Word Count
+  const currentTab = useMemo(() => {
+    if (!state.activeTabId) return null;
+    const find = (items) => {
+      for (const item of items) {
+        if (item.id === state.activeTabId) return item;
+        if (item.children) {
+          const res = find(item.children);
+          if (res) return res;
+        }
+      }
+      return null;
+    };
+    return find(state.tabs);
+  }, [state.tabs, state.activeTabId]);
+
+  const wordCount = useMemo(() => {
+    if (!currentTab || !currentTab.content) return 0;
+    return currentTab.content.trim().split(/\s+/).filter(w => w.length > 0).length;
+  }, [currentTab]);
 
   if (!isLoaded) return <div className="flex items-center justify-center h-screen bg-ez-bg text-ez-meta">Loading...</div>;
 
@@ -83,6 +103,7 @@ function App() {
         settings={state.settings}
         actions={actions}
         onOpenModal={modal.openModal}
+        wordCount={wordCount}
       />
 
       <main className="flex flex-1 overflow-hidden relative">
@@ -106,6 +127,7 @@ function App() {
         closeModal={modal.closeModal}
         modalData={modal.modalData}
         actions={actions}
+        tabs={state.tabs}
       />
     </div>
   );
