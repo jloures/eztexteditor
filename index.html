@@ -1415,7 +1415,11 @@
             const tab = findItemById(id);
             if (!tab || tab.type === 'folder') return;
 
-            updateCurrentTabState(); // Save old tab before switching
+            // Save old tab only if switching to a DIFFERENT one
+            if (appState.activeTabId && appState.activeTabId !== id) {
+                updateCurrentTabState();
+            }
+
             appState.activeTabId = id;
             editor.value = tab.content || "";
 
@@ -1773,6 +1777,16 @@
             if (!appState.autoLockMinutes) appState.autoLockMinutes = 0;
             if (!appState.collapsedFolders) appState.collapsedFolders = [];
 
+            // Ensure at least one tab
+            if (appState.tabs.length === 0) {
+                const id = createTab();
+                appState.activeTabId = id;
+            }
+
+            // CRITICAL: Activate tab BEFORE restoring settings
+            // This ensures editor.value is set before any toggle triggers performSave()
+            activateTab(appState.activeTabId);
+
             // Restore Settings if they exist
             if (appState.settings) {
                 const s = appState.settings;
@@ -1798,14 +1812,6 @@
                     toggleLineNumbers();
                 }
             }
-
-            // Ensure at least one tab
-            if (appState.tabs.length === 0) {
-                const id = createTab();
-                appState.activeTabId = id;
-            }
-
-            activateTab(appState.activeTabId);
         }
 
         // --- Initialization ---
