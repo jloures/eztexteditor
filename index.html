@@ -1558,28 +1558,30 @@
         };
 
         function updateShortcutLabels() {
-            const mainMod = IS_MAC ? '⌘⌥' : 'Alt';
+            const zenMod = IS_MAC ? '⌘E' : 'Alt+Z';
+            const typewriterMod = IS_MAC ? '⌘J' : 'Alt+T';
+            const panicMod = IS_MAC ? '⌘K' : 'Alt+P';
             const searchLabel = IS_MAC ? '⌘⇧F' : 'Ctrl+Shift+F';
 
             // Update Tooltips
-            document.getElementById('panicBtn').setAttribute('data-title', `Panic Button (${mainMod}+P)`);
-            document.getElementById('zenToggle').setAttribute('data-title', `Zen Mode (${mainMod}+Z)`);
-            document.getElementById('typewriterToggle').setAttribute('data-title', `Typewriter Scrolling (${mainMod}+T)`);
+            document.getElementById('panicBtn').setAttribute('data-title', `Panic Button (${panicMod})`);
+            document.getElementById('zenToggle').setAttribute('data-title', `Zen Mode (${zenMod})`);
+            document.getElementById('typewriterToggle').setAttribute('data-title', `Typewriter Scrolling (${typewriterMod})`);
             document.getElementById('searchToggle').setAttribute('data-title', `Global Search (${searchLabel})`);
 
             // Update Info Modal
             const kbdElements = infoModal.querySelectorAll('kbd');
             if (kbdElements.length >= 4) {
                 kbdElements[0].innerText = searchLabel;
-                kbdElements[1].innerText = IS_MAC ? '⌘ + ⌥ + Z' : 'Alt + Z';
-                kbdElements[2].innerText = IS_MAC ? '⌘ + ⌥ + T' : 'Alt + T';
-                kbdElements[3].innerText = IS_MAC ? '⌘ + ⌥ + P' : 'Alt + P';
+                kbdElements[1].innerText = IS_MAC ? '⌘ + E' : 'Alt + Z';
+                kbdElements[2].innerText = IS_MAC ? '⌘ + J' : 'Alt + T';
+                kbdElements[3].innerText = IS_MAC ? '⌘ + K' : 'Alt + P';
             }
 
             // Update Panic Exit Message
             const panicExitMsg = panicOverlay.querySelector('p.mt-8.text-xs');
             if (panicExitMsg) {
-                panicExitMsg.innerText = `Press ${mainMod} + P to exit workspace`;
+                panicExitMsg.innerText = `Press ${panicMod} to exit workspace`;
             }
         }
 
@@ -1795,18 +1797,34 @@
                 openSearch();
             }
 
-            // Mode toggles: Cmd+Opt+Char on Mac, Alt+Char on others
-            const isMainMod = IS_MAC ? (e.metaKey && e.altKey) : (e.altKey && !e.metaKey);
-            if (isMainMod && !e.shiftKey && !e.ctrlKey) {
-                if (primaryKey === 'z') {
-                    e.preventDefault();
-                    toggleZen();
-                } else if (primaryKey === 't') {
-                    e.preventDefault();
-                    toggleTypewriter();
-                } else if (primaryKey === 'p') {
-                    e.preventDefault();
-                    togglePanic();
+            // Mode toggles: Cmd+Char on Mac (non-colliding), Alt+Char on others
+            if (IS_MAC) {
+                // Mac Simple Shortcuts
+                if (e.metaKey && !e.shiftKey && !e.altKey && !e.ctrlKey) {
+                    if (primaryKey === 'e') { // Zen (Expand)
+                        e.preventDefault();
+                        toggleZen();
+                    } else if (primaryKey === 'j') { // Journal (Typewriter)
+                        e.preventDefault();
+                        toggleTypewriter();
+                    } else if (primaryKey === 'k') { // Panic (Kill switch)
+                        e.preventDefault();
+                        togglePanic();
+                    }
+                }
+            } else {
+                // Windows/Linux Alt Shortcuts
+                if (e.altKey && !e.metaKey && !e.shiftKey && !e.ctrlKey) {
+                    if (primaryKey === 'z') {
+                        e.preventDefault();
+                        toggleZen();
+                    } else if (primaryKey === 't') {
+                        e.preventDefault();
+                        toggleTypewriter();
+                    } else if (primaryKey === 'p') {
+                        e.preventDefault();
+                        togglePanic();
+                    }
                 }
             }
         });
