@@ -723,7 +723,6 @@
 
 
 
-        #searchModal .search-item:hover,
         #searchModal .search-item.selected {
             background: rgba(59, 130, 246, 0.1);
             border-color: var(--accent-color);
@@ -2154,12 +2153,12 @@
             searchRecursive(appState.tabs);
 
             searchStatus.innerText = `${searchFilteredMatches.length}${searchFilteredMatches.length >= 500 ? '+' : ''} results`;
-            selectedSearchIndex = 0;
+            selectedSearchIndex = -1;
 
             const fragment = document.createDocumentFragment();
             searchFilteredMatches.forEach((match, index) => {
                 const div = document.createElement('div');
-                div.className = `search-item ${index === 0 ? 'selected' : ''}`;
+                div.className = 'search-item';
 
                 const title = document.createElement('div');
                 title.className = 'font-bold text-gray-200 flex items-center gap-2';
@@ -2184,6 +2183,15 @@
                 }
 
                 div.append(title, snippet);
+
+                // Sync Mouse with Keyboard State
+                div.onmouseenter = () => {
+                    const currentItems = searchResults.querySelectorAll('.search-item');
+                    currentItems.forEach(i => i.classList.remove('selected'));
+                    div.classList.add('selected');
+                    selectedSearchIndex = index;
+                };
+
                 div.onclick = () => selectSearchResult(index);
                 fragment.appendChild(div);
             });
@@ -2220,21 +2228,33 @@
 
         searchInput.addEventListener('keydown', (e) => {
             const items = searchResults.querySelectorAll('.search-item');
+            if (items.length === 0) return;
+
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
                 items[selectedSearchIndex]?.classList.remove('selected');
-                selectedSearchIndex = (selectedSearchIndex + 1) % items.length;
+                if (selectedSearchIndex === -1) {
+                    selectedSearchIndex = 0;
+                } else {
+                    selectedSearchIndex = (selectedSearchIndex + 1) % items.length;
+                }
                 items[selectedSearchIndex]?.classList.add('selected');
                 items[selectedSearchIndex]?.scrollIntoView({ block: 'nearest' });
             } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
                 items[selectedSearchIndex]?.classList.remove('selected');
-                selectedSearchIndex = (selectedSearchIndex - 1 + items.length) % items.length;
+                if (selectedSearchIndex <= 0) {
+                    selectedSearchIndex = items.length - 1;
+                } else {
+                    selectedSearchIndex = (selectedSearchIndex - 1) % items.length;
+                }
                 items[selectedSearchIndex]?.classList.add('selected');
                 items[selectedSearchIndex]?.scrollIntoView({ block: 'nearest' });
             } else if (e.key === 'Enter') {
                 e.preventDefault();
-                selectSearchResult(selectedSearchIndex);
+                // If nothing highlighted, pick the first one by default on Enter
+                const targetIndex = selectedSearchIndex === -1 ? 0 : selectedSearchIndex;
+                selectSearchResult(targetIndex);
             } else if (e.key === 'Escape') {
                 closeSearch();
             }
