@@ -1523,25 +1523,28 @@
         };
 
         function updateShortcutLabels() {
+            const mainMod = IS_MAC ? 'Cmd+Opt' : 'Alt';
+            const searchLabel = IS_MAC ? 'Cmd+Shift+F' : 'Ctrl+Shift+F';
+
             // Update Tooltips
-            document.getElementById('panicBtn').setAttribute('data-title', `Panic Button (${ALT_OPT_TEXT}+P)`);
-            document.getElementById('zenToggle').setAttribute('data-title', `Zen Mode (${ALT_OPT_TEXT}+Z)`);
-            document.getElementById('typewriterToggle').setAttribute('data-title', `Typewriter Scrolling (${ALT_OPT_TEXT}+T)`);
-            document.getElementById('searchToggle').setAttribute('data-title', `Global Search (${CTRL_CMD_TEXT}+K)`);
+            document.getElementById('panicBtn').setAttribute('data-title', `Panic Button (${mainMod}+P)`);
+            document.getElementById('zenToggle').setAttribute('data-title', `Zen Mode (${mainMod}+Z)`);
+            document.getElementById('typewriterToggle').setAttribute('data-title', `Typewriter Scrolling (${mainMod}+T)`);
+            document.getElementById('searchToggle').setAttribute('data-title', `Global Search (${searchLabel})`);
 
             // Update Info Modal
             const kbdElements = infoModal.querySelectorAll('kbd');
-            kbdElements.forEach(kbd => {
-                let text = kbd.innerText;
-                text = text.replace('Cmd', CTRL_CMD_TEXT);
-                text = text.replace('Alt', ALT_OPT_TEXT);
-                kbd.innerText = text;
-            });
+            if (kbdElements.length >= 4) {
+                kbdElements[0].innerText = searchLabel;
+                kbdElements[1].innerText = `${mainMod} + Z`;
+                kbdElements[2].innerText = `${mainMod} + T`;
+                kbdElements[3].innerText = `${mainMod} + P`;
+            }
 
             // Update Panic Exit Message
             const panicExitMsg = panicOverlay.querySelector('p.mt-8.text-xs');
             if (panicExitMsg) {
-                panicExitMsg.innerText = `Press ${ALT_OPT_TEXT} + P to exit workspace`;
+                panicExitMsg.innerText = `Press ${mainMod} + P to exit workspace`;
             }
         }
 
@@ -1735,26 +1738,27 @@
         // Shortcuts
         window.addEventListener('keydown', (e) => {
             const isMod = IS_MAC ? e.metaKey : e.ctrlKey;
+            const primaryKey = e.key.toLowerCase();
 
-            // Cmd+K or Ctrl+K for Search
-            if (isMod && e.key === 'k') {
+            // Search: Cmd+Shift+F or Ctrl+Shift+F
+            if (isMod && e.shiftKey && primaryKey === 'f') {
                 e.preventDefault();
                 openSearch();
             }
-            // Alt+Z for Zen Mode
-            if (e.altKey && e.key === 'z') {
-                e.preventDefault();
-                toggleZen();
-            }
-            // Alt+T for Typewriter
-            if (e.altKey && e.key === 't') {
-                e.preventDefault();
-                toggleTypewriter();
-            }
-            // Alt+P for Panic
-            if (e.altKey && e.key === 'p') {
-                e.preventDefault();
-                togglePanic();
+
+            // Mode toggles: Cmd+Opt+Char on Mac, Alt+Char on others
+            const isMainMod = IS_MAC ? (e.metaKey && e.altKey) : (e.altKey && !e.metaKey);
+            if (isMainMod && !e.shiftKey && !e.ctrlKey) {
+                if (primaryKey === 'z') {
+                    e.preventDefault();
+                    toggleZen();
+                } else if (primaryKey === 't') {
+                    e.preventDefault();
+                    toggleTypewriter();
+                } else if (primaryKey === 'p') {
+                    e.preventDefault();
+                    togglePanic();
+                }
             }
         });
 
