@@ -1463,11 +1463,12 @@
 
             if (isPreviewMode) {
                 renderMarkdownPreview();
+            } else {
+                editor.focus();
             }
-
-            editor.focus();
             updateTypewriterAndHighlight(true);
         }
+
 
         function closeTab(e, id) {
             e.stopPropagation();
@@ -2094,8 +2095,6 @@
                     const targetTab = targetName.includes('/') ? findItemByPath(targetName) : findTabByTitle(targetName);
                     if (targetTab) {
                         activateTab(targetTab.id);
-                        if (isPreviewMode) togglePreview();
-                        if (isPreviewMode) renderMarkdownPreview();
                     } else {
                         showConfirm("Tab Not Found", `Create a new note named "${targetName}"?`, () => {
                             let targetList = appState.tabs;
@@ -2413,9 +2412,8 @@
             const match = searchFilteredMatches[index];
             if (!match) return;
 
-            if (isPreviewMode) togglePreview();
-
             activateTab(match.tab.id);
+
             closeSearch();
 
             if (!match.isTitle) {
