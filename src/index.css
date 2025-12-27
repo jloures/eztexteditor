@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -17,52 +19,120 @@
   --border-color: #2d2d2d;
 }
 
-@layer base {
-  body {
-    @apply bg-ez-bg text-ez-text transition-colors duration-300;
-  }
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Custom Scrollbar from original app */
+/* Ghost Scrollbar */
 ::-webkit-scrollbar {
-    width: 4px;
-    height: 4px;
+  width: 4px;
+  height: 4px;
 }
 
 ::-webkit-scrollbar-track {
-    background: transparent;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-    background: rgba(128, 128, 128, 0.08);
-    border-radius: 20px;
-    transition: background 0.3s;
+  background: rgba(128, 128, 128, 0.08);
+  border-radius: 20px;
+  transition: background 0.3s;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: rgba(128, 128, 128, 0.25);
+  background: rgba(128, 128, 128, 0.25);
+}
+
+/* Wiki Links */
+.wiki-link {
+  color: var(--accent-color);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent-color);
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.wiki-link:hover {
+  opacity: 0.8;
+}
+
+/* Zen Hint */
+.zen-hint {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.5);
+  color: #888;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s;
+  z-index: 1000;
+  font-family: 'Inter', sans-serif;
+}
+
+body.zen-mode .zen-hint {
+  opacity: 0.8;
+}
+
+/* Typewriter Highlight */
+.line-highlight {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: rgba(59, 130, 246, 0.07);
+  border-top: 1px solid rgba(59, 130, 246, 0.2);
+  border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+  pointer-events: none;
+  z-index: 0;
+  transition: top 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+  height: 30px;
+  /* Assuming 30px line height from legacy */
+}
+
+/* Mermaid */
+.mermaid {
+  background: white !important;
+  padding: 20px;
+  border-radius: 8px;
+  margin: 20px 0;
+  display: flex;
+  justify-content: center;
+}
+
+[data-theme='dark'] .mermaid {
+  background: #1e1e1e !important;
+  filter: invert(0.9) hue-rotate(180deg);
 }
 
 /* Typography Overrides */
 .prose {
-    max-width: 100% !important;
+  max-width: 100% !important;
+  color: inherit;
+  font-family: 'JetBrains Mono', monospace;
 }
 
 [data-theme='dark'] .prose {
-    --tw-prose-body: var(--text-color);
-    --tw-prose-headings: #fff;
-    --tw-prose-links: var(--accent-color);
-    --tw-prose-code: #f472b6;
-    --tw-prose-pre-bg: #1e1e1e;
-    --tw-prose-quotes: #9ca3af;
+  --tw-prose-body: var(--text-color);
+  --tw-prose-headings: #fff;
+  --tw-prose-links: var(--accent-color);
+  --tw-prose-code: #f472b6;
+  --tw-prose-pre-bg: #1e1e1e;
+  --tw-prose-quotes: #9ca3af;
 }
 
 /* Zen Mode */
 body.zen-mode header,
 body.zen-mode .sidebar {
-    display: none !important;
+  display: none !important;
 }
 
 body.zen-mode main {
-    height: 100vh;
+  height: 100vh;
 }

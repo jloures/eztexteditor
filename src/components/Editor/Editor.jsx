@@ -192,7 +192,7 @@ export default function Editor({ activeTabId, tabs, actions, settings }) {
     return (
         <div id="editor-area" className="flex-1 relative h-full flex bg-ez-bg text-ez-text overflow-hidden">
 
-            {!showPreview && showLineNumbers && (
+            {showLineNumbers && !showPreview && (
                 <div
                     ref={lineNumbersRef}
                     className="w-[50px] pt-10 pb-10 text-right pr-3 bg-gray-50/5 dark:bg-gray-900/20 text-ez-meta border-r border-ez-border font-mono text-lg leading-relaxed select-none overflow-hidden"
@@ -206,19 +206,32 @@ export default function Editor({ activeTabId, tabs, actions, settings }) {
             )}
 
             {!showPreview ? (
-                <textarea
-                    ref={textareaRef}
-                    className={clsx(
-                        "w-full h-full p-10 bg-transparent resize-none outline-none font-mono text-lg text-ez-text leading-relaxed",
-                        settings.isTypewriterMode && "pb-[50vh]"
+                <>
+                    {settings.isTypewriterMode && (
+                        <div
+                            className="line-highlight"
+                            style={{
+                                top: '50%',
+                                marginTop: '-15px',
+                                width: '100%',
+                                display: 'block'
+                            }}
+                        />
                     )}
-                    style={{ lineHeight: '30px', whiteSpace: showLineNumbers ? 'pre' : 'pre-wrap' }}
-                    value={content || ''}
-                    onChange={handleInput}
-                    onScroll={handleScroll}
-                    placeholder="Start typing..."
-                    spellCheck="false"
-                />
+                    <textarea
+                        ref={textareaRef}
+                        className={clsx(
+                            "w-full h-full p-10 bg-transparent resize-none outline-none font-mono text-lg text-ez-text leading-relaxed relative z-10",
+                            settings.isTypewriterMode && "pb-[50vh]"
+                        )}
+                        style={{ lineHeight: '30px', whiteSpace: showLineNumbers ? 'pre' : 'pre-wrap' }}
+                        value={content || ''}
+                        onChange={handleInput}
+                        onScroll={handleScroll}
+                        placeholder="Start typing..."
+                        spellCheck="false"
+                    />
+                </>
             ) : (
                 <div className="flex w-full h-full overflow-hidden">
                     {/* TOC Sidebar if needed, or just inline. Legacy had sticky TOC. */}

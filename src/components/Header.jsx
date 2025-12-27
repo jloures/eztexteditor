@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { startTutorial } from '../utils/tutorial';
 
-export default function Header({ settings, actions, onOpenModal, wordCount }) {
+export default function Header({ settings, actions, onOpenModal, wordCount, isLocked }) {
 
     // Combining Arrows for Typewriter icon approximation
     const TypewriterIcon = () => (
@@ -17,16 +17,7 @@ export default function Header({ settings, actions, onOpenModal, wordCount }) {
     );
 
     const downloadContent = () => {
-        // Find active content - actually we don't have direct access to "content" here easily
-        // unless we pass it or find it. We have `settings` and `actions`, but content is in `tabs`.
-        // Ideally App passes `currentContent` or we find it.
-        // Let's assume we can trigger an action or use a prop.
-        // Modals.jsx has access to tabs. Header assumes it might? NO.
-        // We generally need to pass `activeTab` or `tabs` to Header to find content.
-        // OR we add `downloadTab` to actions.
-        // Let's use `actions.downloadTab()` if we add it, OR pass tabs here.
-        // Since we didn't add it to actions yet, let's pass `tabs` and `activeTabId` to Header.
-        actions.downloadCurrentTab();
+        actions.backupNotebook();
     };
 
     const copyContent = () => {
@@ -53,12 +44,13 @@ export default function Header({ settings, actions, onOpenModal, wordCount }) {
                 <div className="flex gap-2 items-center">
                     <span>{wordCount} WORDS</span>
                 </div>
+                {isLocked && <div className="text-blue-400 font-bold tracking-wider">LOCKED</div>}
                 <div className="px-2 py-0.5 rounded bg-gray-800 text-gray-300 text-[10px] font-bold tracking-wider">EDIT</div>
             </div>
 
             <div id="header-toolbar" className="flex items-center gap-1.5">
                 <IconBtn icon={HelpCircle} onClick={startTutorial} title="Start Tutorial" />
-                <IconBtn icon={Shield} onClick={() => onOpenModal('security')} title="Security Settings" />
+                <IconBtn id="security-btn" icon={Shield} onClick={() => onOpenModal('security')} title="Security Settings" />
                 <IconBtn icon={Ghost} onClick={actions.togglePanic} title="Panic Mode (Alt+P)" colorClass="text-orange-400 hover:text-orange-300" />
                 <IconBtn
                     icon={settings.isZen ? Minimize : Expand}
@@ -71,21 +63,22 @@ export default function Header({ settings, actions, onOpenModal, wordCount }) {
                     active={settings.isTypewriterMode}
                     title="Typewriter Scrolling"
                 />
-                <IconBtn icon={Search} onClick={() => onOpenModal('search')} title="Global Search (Cmd+K)" />
-                <IconBtn icon={Plus} onClick={() => actions.createTab('note')} title="New Note" />
+                <IconBtn id="search-btn" icon={Search} onClick={() => onOpenModal('search')} title="Global Search (Cmd+K)" />
+                <IconBtn id="new-btn" icon={Plus} onClick={() => actions.createTab('note')} title="New Note" />
 
                 <div className="w-px h-4 bg-ez-border mx-1" />
 
                 <IconBtn
+                    id="preview-toggle"
                     icon={settings.isPreviewMode ? EyeOff : Eye}
                     onClick={() => actions.updateSettings({ isPreviewMode: !settings.isPreviewMode })}
                     active={settings.isPreviewMode}
                     title="Toggle Preview"
                 />
                 <IconBtn icon={Network} onClick={() => onOpenModal('graph')} title="Graph View (Alt+G)" />
-                <IconBtn icon={Lock} onClick={() => onOpenModal('security')} title="Encrypt" />
-                <IconBtn icon={Share2} onClick={() => onOpenModal('share')} title="Share" />
-                <IconBtn icon={Info} onClick={() => onOpenModal('info')} title="Shortcuts & Info" />
+                <IconBtn id="lock-btn" icon={isLocked ? Lock : Unlock} onClick={() => onOpenModal('security')} title={isLocked ? "Current: Encrypted" : "Encrypt Notebook"} />
+                <IconBtn id="share-btn" icon={Share2} onClick={() => onOpenModal('share')} title="Share" />
+                <IconBtn id="info-btn" icon={Info} onClick={() => onOpenModal('info')} title="Shortcuts & Info" />
 
                 <div className="w-px h-4 bg-ez-border mx-1" />
 

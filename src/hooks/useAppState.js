@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { encodeToUrl, decodeFromUrl, encryptText, deriveKey } from '../utils/persistence';
+import JSZip from 'jszip';
 
 const DEBOUNCE_MS = 500;
 
@@ -273,26 +274,54 @@ export function useAppState() {
 
     // NEW: Download & Copy
     const downloadCurrentTab = useCallback(() => {
-        setState(current => {
-            const find = (items) => {
-                for (const i of items) {
-                    if (i.id === current.activeTabId) return i;
-                    if (i.children) { const f = find(i.children); if (f) return f; }
+        // NEW: Download/Backup (Legacy Style)
+        const backupNotebook = useCallback(async () => {
+            try {
+                const dataToSave = JSON.stringify(state);
+                let hash = '';
+                if (encryptionKey) {
+                    hash = 'enc_' + await encryptText(dataToSave, encryptionKey);
+                } else {
+                    hash = await encodeToUrl(dataToSave);
                 }
-                return null;
-            };
-            const tab = find(current.tabs);
-            if (tab) {
-                const blob = new Blob([tab.content || ''], { type: 'text/markdown' });
+
+                const fullUrl = window.location.origin + window.location.pathname + '#' + hash;
+
+                const htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="0; url=${fullUrl}">
+    <title>Restoring Notebook...</title>
+    <script>
+        window.location.href = "${fullUrl}";
+    <\/script>
+    <style>
+        body { font-family: sans-serif; background: #121212; color: #fff; display: flex; align-items: center; justify-content: center; height: 100vh; flex-direction: column; }
+        a { color: #3b82f6; }
+    </style>
+</head>
+<body>
+    <p>Opening your notebook secure environment...</p>
+    <p><small>If not redirected automatically, <a href="${fullUrl}">click here</a>.</small></p>
+</body>
+</html>`;
+
+                const zip = new JSZip();
+                zip.file("EzTextEditor_Backup.html", htmlContent);
+
+                const blob = await zip.generateAsync({ type: "blob" });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `${tab.title}.md`;
+                a.download = "notebook_backup.zip";
                 a.click();
                 URL.revokeObjectURL(url);
+            } catch (e) {
+                console.error("Export failed:", e);
+                alert("Failed to export notebook.");
             }
-            return current;
-        });
+        }, [state, encryptionKey]);
     }, []);
 
     const copyCurrentTab = useCallback(() => {
@@ -355,8 +384,10 @@ export function useAppState() {
             updateSettings,
             setEncryptionKey: setEncryptionKeyAction,
             togglePanic,
-            downloadCurrentTab,
+            togglePanic,
+            backupNotebook,
             copyCurrentTab
-        }
+        },
+        hasKey: !!encryptionKey
     };
 }

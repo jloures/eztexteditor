@@ -5,13 +5,10 @@ import Header from './components/Header';
 import Editor from './components/Editor/Editor';
 import Modals from './components/Modals/Modals';
 import { PanicOverlay } from './components/PanicOverlay';
+import { startTutorial } from './utils/tutorial';
 
 function App() {
-  const { state, actions, isLoaded, isLocked, modal, showPanic } = useAppState();
-
-  // Legacy support for panic exit shortcut if needed specifically handled here or in component
-  // We already have global keyboard listener in App, but let's ensure it toggles.
-  // The App listeners call actions.togglePanic.
+  const { state, actions, isLoaded, isLocked, modal, showPanic, hasKey } = useAppState();
 
   // Global Effects
   useEffect(() => {
@@ -65,7 +62,21 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [actions, modal, state.settings.isZen]);
+  }, [actions, modal, state.settings.isZen, showPanic]);
+
+  // Tutorial Auto-Start
+  useEffect(() => {
+    if (isLoaded && !modal.activeModal && !isLocked) {
+      // Simple check to debounce basic initial load
+      const hasSeen = localStorage.getItem('ez_has_seen_tutorial');
+      if (!hasSeen) {
+        setTimeout(() => {
+          startTutorial();
+          localStorage.setItem('ez_has_seen_tutorial', 'true');
+        }, 1000);
+      }
+    }
+  }, [isLoaded, modal.activeModal, isLocked]);
 
   // Calculate Word Count
   const currentTab = useMemo(() => {
@@ -97,6 +108,7 @@ function App() {
         actions={actions}
         onOpenModal={modal.openModal}
         wordCount={wordCount}
+        isLocked={hasKey || isLocked}
       />
 
       <main className="flex flex-1 overflow-hidden relative">
