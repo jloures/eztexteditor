@@ -1805,11 +1805,7 @@
                 themeToggle.classList.replace('fa-sun', 'fa-moon');
             }
 
-            // Typewriter Mode Default
-            if (isTypewriter) {
-                document.body.classList.add('typewriter-active');
-                typewriterToggle.classList.add('btn-active');
-            }
+
 
             if (!isModalOpen) editor.focus();
 
@@ -2062,7 +2058,7 @@
         zenToggle.addEventListener('click', toggleZen);
 
         // 2. Typewriter Scrolling
-        let isTypewriter = true;
+        let isTypewriter = false;
         function toggleTypewriter() {
             isTypewriter = !isTypewriter;
             document.body.classList.toggle('typewriter-active', isTypewriter);
