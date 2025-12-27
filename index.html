@@ -932,60 +932,125 @@
                     class="fas fa-times cursor-pointer text-gray-400 hover:text-white transition text-xl"></i>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="space-y-8">
                 <div>
                     <h4 class="text-blue-400 font-bold uppercase text-xs tracking-widest mb-4">Keyboard Shortcuts</h4>
-                    <div class="space-y-3">
-                        <div class="flex justify-between text-sm">
-                            <span class="text-gray-400">Global Search</span>
-                            <kbd class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs">Cmd +
-                                K</kbd>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
+                                <span class="text-gray-400">Global Search</span>
+                                <kbd id="kbd-search"
+                                    class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs font-mono">⌘⇧F</kbd>
+                            </div>
+                            <div class="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
+                                <span class="text-gray-400">Zen Mode</span>
+                                <kbd id="kbd-zen"
+                                    class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs font-mono">⌘E</kbd>
+                            </div>
+                            <div class="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
+                                <span class="text-gray-400">Typewriter Mode</span>
+                                <kbd id="kbd-typewriter"
+                                    class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs font-mono">⌘J</kbd>
+                            </div>
+                            <div class="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
+                                <span class="text-gray-400">Panic Mode</span>
+                                <kbd id="kbd-panic"
+                                    class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs font-mono">⌘K</kbd>
+                            </div>
+                            <div class="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
+                                <span class="text-gray-400">Toggle Preview</span>
+                                <kbd id="kbd-preview"
+                                    class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs font-mono">⌘⇧P</kbd>
+                            </div>
+                            <div class="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
+                                <span class="text-gray-400">Graph View</span>
+                                <kbd id="kbd-graph"
+                                    class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs font-mono">⌥G</kbd>
+                            </div>
+                            <div class="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
+                                <span class="text-gray-400">Help / Shortcuts</span>
+                                <kbd id="kbd-info"
+                                    class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs font-mono">⌘/</kbd>
+                            </div>
                         </div>
-                        <div class="flex justify-between text-sm">
-                            <span class="text-gray-400">Zen Mode</span>
-                            <kbd class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs">Alt +
-                                Z</kbd>
-                        </div>
-                        <div class="flex justify-between text-sm">
-                            <span class="text-gray-400">Typewriter Mode</span>
-                            <kbd class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs">Alt +
-                                T</kbd>
-                        </div>
-                        <div class="flex justify-between text-sm">
-                            <span class="text-gray-400">Panic Mode</span>
-                            <kbd class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs">Alt +
-                                P</kbd>
-                        </div>
-                        <div class="flex justify-between text-sm">
-                            <span class="text-gray-400">Indent Line</span>
-                            <kbd
-                                class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs">Tab</kbd>
-                        </div>
-                        <div class="flex justify-between text-sm">
-                            <span class="text-gray-400">Close Modals</span>
-                            <kbd
-                                class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs">Esc</kbd>
+
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
+                                <span class="text-gray-400">Download MD</span>
+                                <kbd id="kbd-save"
+                                    class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs font-mono">⌘S</kbd>
+                            </div>
+                            <div class="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
+                                <span class="text-gray-400">Share Link</span>
+                                <kbd id="kbd-share"
+                                    class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs font-mono">⌘⇧S</kbd>
+                            </div>
+                            <div class="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
+                                <span class="text-gray-400">Encryption</span>
+                                <kbd id="kbd-lock"
+                                    class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs font-mono">⌘⇧L</kbd>
+                            </div>
+                            <div class="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
+                                <span class="text-gray-400">Toggle Theme</span>
+                                <kbd id="kbd-theme"
+                                    class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs font-mono">⌘⇧D</kbd>
+                            </div>
+                            <div class="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
+                                <span class="text-gray-400">Copy Total</span>
+                                <kbd id="kbd-copy"
+                                    class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs font-mono">⌘⌥C</kbd>
+                            </div>
+                            <div class="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
+                                <span class="text-gray-400">Start Scratch</span>
+                                <kbd id="kbd-new"
+                                    class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs font-mono">⌘⇧⌫</kbd>
+                            </div>
+                            <div class="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
+                                <span class="text-gray-400">Indent / Close Modal</span>
+                                <div class="flex gap-1">
+                                    <kbd
+                                        class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs font-mono">Tab</kbd>
+                                    <kbd
+                                        class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs font-mono">Esc</kbd>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <div>
-                    <h4 class="text-orange-400 font-bold uppercase text-xs tracking-widest mb-4">Functionality</h4>
-                    <div class="space-y-4 text-sm text-gray-300">
-                        <div>
-                            <p class="font-bold text-white mb-1">Zero-Knowledge Storage</p>
-                            <p class="text-gray-400 text-xs leading-relaxed">Your data is never sent to a server.
-                                Everything is stored in the URL hash, keeping it private and local.</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4">
+                    <div>
+                        <h4 class="text-orange-400 font-bold uppercase text-xs tracking-widest mb-4">Storage & Privacy
+                        </h4>
+                        <div class="space-y-4 text-sm text-gray-300">
+                            <div>
+                                <p class="font-bold text-white mb-1">Zero-Knowledge Storage</p>
+                                <p class="text-gray-400 text-xs leading-relaxed">Your data is never sent to a server.
+                                    Everything is stored in the URL hash, keeping it private and local.</p>
+                            </div>
+                            <div>
+                                <p class="font-bold text-white mb-1">Encrypted Sessions</p>
+                                <p class="text-gray-400 text-xs leading-relaxed">Lock your notebook with AES-256
+                                    encryption.
+                                    Only those with the password can read the content.</p>
+                            </div>
                         </div>
-                        <div>
-                            <p class="font-bold text-white mb-1">Markdown & Diagrams</p>
-                            <p class="text-gray-400 text-xs leading-relaxed">Full Markdown support including GFM. Use
-                                Mermaid.js for diagrams and Highlight.js for code blocks.</p>
-                        </div>
-                        <div>
-                            <p class="font-bold text-white mb-1">Encrypted Sessions</p>
-                            <p class="text-gray-400 text-xs leading-relaxed">Lock your notebook with AES-256 encryption.
-                                Only those with the password can read the content.</p>
+                    </div>
+                    <div>
+                        <h4 class="text-green-400 font-bold uppercase text-xs tracking-widest mb-4">Features</h4>
+                        <div class="space-y-4 text-sm text-gray-300">
+                            <div>
+                                <p class="font-bold text-white mb-1">Markdown & Diagrams</p>
+                                <p class="text-gray-400 text-xs leading-relaxed">Full Markdown support including GFM.
+                                    Use
+                                    Mermaid.js for diagrams, KaTeX for math, and Highlight.js.</p>
+                            </div>
+                            <div>
+                                <p class="font-bold text-white mb-1">Wiki-Links & Graph</p>
+                                <p class="text-gray-400 text-xs leading-relaxed">Use <code
+                                        class="text-blue-400">[[Link]]</code> to connect notes. View your notebook as a
+                                    connected graph of ideas.</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1714,6 +1779,7 @@
             const clearMod = IS_MAC ? '⌘⇧⌫' : 'Ctrl+Shift+BS';
             const copyMod = IS_MAC ? '⌘⌥C' : 'Ctrl+Alt+C';
             const saveMod = IS_MAC ? '⌘S' : 'Ctrl+S';
+            const graphMod = IS_MAC ? '⌥G' : 'Alt+G';
 
             // Update Tooltips
             document.getElementById('panicBtn').setAttribute('data-title', `Panic Button (${panicMod})`);
@@ -1730,18 +1796,23 @@
             document.getElementById('clearBtn').setAttribute('data-title', `Clear Editor (${clearMod})`);
             document.getElementById('copyBtn').setAttribute('data-title', `Copy All (${copyMod})`);
             document.getElementById('downloadBtn').setAttribute('data-title', `Download Markdown (${saveMod})`);
+            document.getElementById('graphBtn').setAttribute('data-title', `Graph View (${graphMod})`);
 
 
-            // Update Info Modal
-            const kbdElements = infoModal.querySelectorAll('kbd');
-            if (kbdElements.length >= 4) {
-                kbdElements[0].innerText = searchLabel;
-                kbdElements[1].innerText = IS_MAC ? '⌘ + E' : 'Alt + Z';
-                kbdElements[2].innerText = IS_MAC ? '⌘ + J' : 'Alt + T';
-                kbdElements[3].innerText = IS_MAC ? '⌘ + K' : 'Alt + P';
-                // Note: We aren't updating the whole table here, just the quick ones shown.
-                // A full help table update would be better but out of current scope/size.
-            }
+            // Update Info Modal KBDs
+            if (document.getElementById('kbd-search')) document.getElementById('kbd-search').innerText = searchLabel;
+            if (document.getElementById('kbd-zen')) document.getElementById('kbd-zen').innerText = zenMod;
+            if (document.getElementById('kbd-typewriter')) document.getElementById('kbd-typewriter').innerText = typewriterMod;
+            if (document.getElementById('kbd-panic')) document.getElementById('kbd-panic').innerText = panicMod;
+            if (document.getElementById('kbd-preview')) document.getElementById('kbd-preview').innerText = previewMod;
+            if (document.getElementById('kbd-graph')) document.getElementById('kbd-graph').innerText = graphMod;
+            if (document.getElementById('kbd-info')) document.getElementById('kbd-info').innerText = infoMod;
+            if (document.getElementById('kbd-save')) document.getElementById('kbd-save').innerText = saveMod;
+            if (document.getElementById('kbd-share')) document.getElementById('kbd-share').innerText = shareMod;
+            if (document.getElementById('kbd-lock')) document.getElementById('kbd-lock').innerText = lockMod;
+            if (document.getElementById('kbd-theme')) document.getElementById('kbd-theme').innerText = themeMod;
+            if (document.getElementById('kbd-copy')) document.getElementById('kbd-copy').innerText = copyMod;
+            if (document.getElementById('kbd-new')) document.getElementById('kbd-new').innerText = newMod;
 
             // Update Panic Exit Message
             const panicExitMsg = panicOverlay.querySelector('p.mt-8.text-xs');
