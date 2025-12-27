@@ -28,7 +28,6 @@ export function SearchModal({ tabs, isOpen, onClose, onNavigate, modalData, acti
 
         const qLower = query.trim().toLowerCase();
         const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const highlightRegex = new RegExp(`(${escaped})`, 'gi');
         const matches = [];
 
         const searchRecursive = (items) => {
@@ -109,18 +108,18 @@ export function SearchModal({ tabs, isOpen, onClose, onNavigate, modalData, acti
             e.preventDefault();
             const match = results[selectedIndex === -1 ? 0 : selectedIndex];
             if (match) {
-                onNavigate(match.id); // In legacy, it also sets scroll/selection. We handle that in Editor via effect if needed or pass pos.
-                onClose();
+                onNavigate(match.id);
+                if (typeof onClose === 'function') onClose();
             }
         } else if (e.key === 'Escape') {
-            onClose();
+            if (typeof onClose === 'function') onClose();
         }
     };
 
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-start justify-center pt-[15vh]" onClick={onClose}>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-start justify-center pt-[15vh]" onClick={() => typeof onClose === 'function' && onClose()}>
             <div className="bg-ez-bg border border-ez-border rounded-xl shadow-2xl w-[600px] max-h-[70vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
                 <div className="p-5 border-b border-ez-border flex items-center gap-4">
                     <i className="fas fa-search text-ez-meta text-lg"></i>
@@ -157,7 +156,7 @@ export function SearchModal({ tabs, isOpen, onClose, onNavigate, modalData, acti
                             )}
                             onClick={() => {
                                 onNavigate(result.id);
-                                onClose();
+                                if (typeof onClose === 'function') onClose();
                             }}
                             onMouseEnter={() => setSelectedIndex(index)}
                         >
