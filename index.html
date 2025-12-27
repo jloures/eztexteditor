@@ -2092,12 +2092,15 @@
             searchResults.innerHTML = '';
             searchFilteredMatches = [];
 
-            if (!query.trim()) {
+            const trimmedQuery = query.trim();
+            if (!trimmedQuery) {
                 searchStatus.innerText = '0 results';
                 return;
             }
 
-            const qLower = query.toLowerCase();
+            const qLower = trimmedQuery.toLowerCase();
+            const escaped = trimmedQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const highlightRegex = new RegExp(`(${escaped})`, 'gi');
 
             function searchRecursive(items) {
                 items.forEach(item => {
@@ -2111,18 +2114,30 @@
                             });
                         }
 
-                        // Content Matches
-                        let content = item.content;
-                        let pos = content.toLowerCase().indexOf(qLower);
-                        while (pos !== -1) {
-                            const lineNum = content.substring(0, pos).split('\n').length;
+                        // Content Matches - Optimized
+                        const content = item.content;
+                        const cLower = content.toLowerCase();
+                        let pos = cLower.indexOf(qLower);
+                        let lastMatchPos = 0;
+                        let currentLine = 1;
+
+                        while (pos !== -1 && searchFilteredMatches.length < 500) {
+                            // Efficiently count newlines since the last match to determine line number
+                            const segment = content.substring(lastMatchPos, pos);
+                            let newlines = 0;
+                            for (let i = 0; i < segment.length; i++) {
+                                if (segment[i] === '\n') newlines++;
+                            }
+                            currentLine += newlines;
+                            lastMatchPos = pos;
+
                             searchFilteredMatches.push({
                                 tab: item,
                                 matchIndex: pos,
-                                lineNum: lineNum,
+                                lineNum: currentLine,
                                 isTitle: false
                             });
-                            pos = content.toLowerCase().indexOf(qLower, pos + 1);
+                            pos = cLower.indexOf(qLower, pos + 1);
                         }
                     } else if (item.children) {
                         searchRecursive(item.children);
@@ -2131,16 +2146,20 @@
             }
             searchRecursive(appState.tabs);
 
-            searchStatus.innerText = `${searchFilteredMatches.length} results`;
+            searchStatus.innerText = `${searchFilteredMatches.length}${searchFilteredMatches.length >= 500 ? '+' : ''} results`;
             selectedSearchIndex = 0;
 
+            const fragment = document.createDocumentFragment();
             searchFilteredMatches.forEach((match, index) => {
                 const div = document.createElement('div');
                 div.className = `search-item ${index === 0 ? 'selected' : ''}`;
 
                 const title = document.createElement('div');
                 title.className = 'font-bold text-gray-200 flex items-center gap-2';
-                title.innerHTML = `<i class="fas fa-file-alt text-xs opacity-50"></i> ${match.isTitle ? highlightMatch(match.tab.title, query) : match.tab.title}`;
+
+                const highlight = (text) => text.replace(highlightRegex, '<span class="search-match-highlight">$1</span>');
+
+                title.innerHTML = `<i class="fas fa-file-alt text-xs opacity-50"></i> ${match.isTitle ? highlight(match.tab.title) : match.tab.title}`;
 
                 const snippet = document.createElement('div');
                 snippet.className = 'text-sm text-gray-500 truncate font-mono mt-1 flex items-center justify-between';
@@ -2150,17 +2169,18 @@
                 } else {
                     const content = match.tab.content;
                     const start = Math.max(0, match.matchIndex - 40);
-                    const end = Math.min(content.length, match.matchIndex + query.length + 60);
+                    const end = Math.min(content.length, match.matchIndex + trimmedQuery.length + 60);
                     let prefix = start > 0 ? '...' : '';
                     let suffix = end < content.length ? '...' : '';
                     let text = content.substring(start, end);
-                    snippet.innerHTML = `<span>${prefix}${highlightMatch(text, query)}${suffix}</span> <span class="text-xs opacity-30 ml-4">Line ${match.lineNum}</span>`;
+                    snippet.innerHTML = `<span>${prefix}${highlight(text)}${suffix}</span> <span class="text-xs opacity-30 ml-4">Line ${match.lineNum}</span>`;
                 }
 
                 div.append(title, snippet);
                 div.onclick = () => selectSearchResult(index);
-                searchResults.appendChild(div);
+                fragment.appendChild(div);
             });
+            searchResults.appendChild(fragment);
         }
 
         function selectSearchResult(index) {
@@ -2184,7 +2204,11 @@
             }
         }
 
-        searchInput.addEventListener('input', (e) => renderSearchResults(e.target.value));
+        let searchDebounceTimeout;
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(searchDebounceTimeout);
+            searchDebounceTimeout = setTimeout(() => renderSearchResults(e.target.value), 80);
+        });
         searchToggle.addEventListener('click', openSearch);
 
         searchInput.addEventListener('keydown', (e) => {
