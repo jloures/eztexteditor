@@ -2175,19 +2175,12 @@
             if (!match.isTitle) {
                 setTimeout(() => {
                     editor.focus();
-                    editor.setSelectionRange(match.matchIndex, match.matchIndex); // Move cursor before the match
+                    editor.setSelectionRange(match.matchIndex, match.matchIndex);
 
-                    const lineHeight = parseInt(getComputedStyle(editor).lineHeight) || 27;
-                    const textBefore = editor.value.substring(0, match.matchIndex);
-                    const lines = textBefore.split('\n');
-                    const lineCount = lines.length;
-                    const paddingTop = parseInt(getComputedStyle(editor).paddingTop) || 40;
-                    const top = paddingTop + (lineCount - 1) * lineHeight;
-
-                    editor.scrollTop = top - editor.clientHeight / 2 + lineHeight / 2;
+                    // Let updateTypewriterAndHighlight handle the centering
                     updateTypewriterAndHighlight();
                     updateLineNumbers();
-                }, 50);
+                }, 100); // Slightly longer timeout for stability
             }
         }
 
@@ -2378,19 +2371,24 @@
             const lines = textBeforeCaret.split('\n');
             const currentLineNum = lines.length;
 
-            const lineHeight = parseInt(getComputedStyle(editor).lineHeight) || 27;
-            const paddingTop = parseInt(getComputedStyle(editor).paddingTop) || 40;
+            const style = getComputedStyle(editor);
+            const lineHeight = parseInt(style.lineHeight) || 27;
+            const paddingTop = parseInt(style.paddingTop) || 40;
 
             // Update Line Highlight Position
             const highlightTop = paddingTop + ((currentLineNum - 1) * lineHeight);
             if (lineHighlight) {
                 lineHighlight.style.top = `${highlightTop}px`;
                 lineHighlight.style.height = `${lineHeight}px`;
+                lineHighlight.style.display = 'block';
+                // Sync the transform immediately
+                lineHighlight.style.transform = `translateY(-${editor.scrollTop}px)`;
             }
 
             if (isTypewriter) {
                 const scrollPos = highlightTop - (editor.clientHeight / 2) + (lineHeight / 2);
                 editor.scrollTop = scrollPos;
+                syncGutterScroll();
             }
         }
 
