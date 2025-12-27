@@ -4,7 +4,8 @@
   "description": "A **secure, client-side, multi-tab Markdown editor** that stores 100% of your data in the URL. accessible anywhere, no database required.",
   "main": "index.js",
   "scripts": {
-    "test": "jest"
+    "test": "jest",
+    "start": "npx serve ."
   },
   "repository": {
     "type": "git",
