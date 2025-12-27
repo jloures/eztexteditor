@@ -727,6 +727,14 @@
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0, 0, 0, .1);
         }
+
+        .search-match-highlight {
+            background: rgba(59, 130, 246, 0.3);
+            color: #fff;
+            padding: 0 2px;
+            border-radius: 2px;
+            box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.5);
+        }
     </style>
 </head>
 
@@ -1978,7 +1986,15 @@
 
         // 3. Global Search
         let selectedSearchIndex = 0;
-        let searchFilteredTabs = [];
+        let searchFilteredMatches = [];
+        let currentSearchQuery = '';
+
+        function highlightMatch(text, query) {
+            if (!query) return text;
+            const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(`(${escaped})`, 'gi');
+            return text.replace(regex, '<span class="search-match-highlight">$1</span>');
+        }
 
         function openSearch() {
             isModalOpen = true;
@@ -1994,15 +2010,39 @@
         }
 
         function renderSearchResults(query) {
+            currentSearchQuery = query;
             searchResults.innerHTML = '';
-            searchFilteredTabs = [];
+            searchFilteredMatches = [];
+
+            if (!query.trim()) {
+                searchStatus.innerText = '0 results';
+                return;
+            }
+
+            const qLower = query.toLowerCase();
 
             function searchRecursive(items) {
                 items.forEach(item => {
                     if (item.type === 'note') {
-                        if (item.title.toLowerCase().includes(query.toLowerCase()) ||
-                            item.content.toLowerCase().includes(query.toLowerCase())) {
-                            searchFilteredTabs.push(item);
+                        // Title Match
+                        if (item.title.toLowerCase().includes(qLower)) {
+                            searchFilteredMatches.push({
+                                tab: item,
+                                matchIndex: -1,
+                                isTitle: true
+                            });
+                        }
+
+                        // Content Matches
+                        let content = item.content;
+                        let pos = content.toLowerCase().indexOf(qLower);
+                        while (pos !== -1) {
+                            searchFilteredMatches.push({
+                                tab: item,
+                                matchIndex: pos,
+                                isTitle: false
+                            });
+                            pos = content.toLowerCase().indexOf(qLower, pos + 1);
                         }
                     } else if (item.children) {
                         searchRecursive(item.children);
@@ -2011,30 +2051,63 @@
             }
             searchRecursive(appState.tabs);
 
-            searchStatus.innerText = `${searchFilteredTabs.length} results`;
+            searchStatus.innerText = `${searchFilteredMatches.length} results`;
             selectedSearchIndex = 0;
 
-            searchFilteredTabs.forEach((tab, index) => {
+            searchFilteredMatches.forEach((match, index) => {
                 const div = document.createElement('div');
                 div.className = `search-item ${index === 0 ? 'selected' : ''}`;
 
                 const title = document.createElement('div');
-                title.className = 'font-bold text-gray-200';
-                title.innerText = tab.title;
+                title.className = 'font-bold text-gray-200 flex items-center gap-2';
+                title.innerHTML = `<i class="fas fa-file-alt text-xs opacity-50"></i> ${match.isTitle ? highlightMatch(match.tab.title, query) : match.tab.title}`;
 
                 const snippet = document.createElement('div');
-                snippet.className = 'text-sm text-gray-500 truncate';
-                const matchIndex = tab.content.toLowerCase().indexOf(query.toLowerCase());
-                const start = Math.max(0, matchIndex - 30);
-                snippet.innerText = tab.content.substring(start, start + 100);
+                snippet.className = 'text-sm text-gray-500 truncate font-mono mt-1';
+
+                if (match.isTitle) {
+                    snippet.innerHTML = '<span class="text-blue-400/50">Match in title</span>';
+                } else {
+                    const content = match.tab.content;
+                    const start = Math.max(0, match.matchIndex - 40);
+                    const end = Math.min(content.length, match.matchIndex + query.length + 60);
+                    let prefix = start > 0 ? '...' : '';
+                    let suffix = end < content.length ? '...' : '';
+                    let text = content.substring(start, end);
+                    snippet.innerHTML = prefix + highlightMatch(text, query) + suffix;
+                }
 
                 div.append(title, snippet);
-                div.onclick = () => {
-                    activateTab(tab.id);
-                    closeSearch();
-                };
+                div.onclick = () => selectSearchResult(index);
                 searchResults.appendChild(div);
             });
+        }
+
+        function selectSearchResult(index) {
+            const match = searchFilteredMatches[index];
+            if (!match) return;
+
+            if (isPreviewMode) togglePreview();
+
+            activateTab(match.tab.id);
+            closeSearch();
+
+            if (!match.isTitle) {
+                setTimeout(() => {
+                    editor.focus();
+                    editor.setSelectionRange(match.matchIndex, match.matchIndex + currentSearchQuery.length);
+
+                    const lineHeight = parseInt(getComputedStyle(editor).lineHeight) || 27;
+                    const textBefore = editor.value.substring(0, match.matchIndex);
+                    const lines = textBefore.split('\n');
+                    const lineCount = lines.length;
+                    const paddingTop = parseInt(getComputedStyle(editor).paddingTop) || 40;
+                    const top = paddingTop + (lineCount - 1) * lineHeight;
+
+                    editor.scrollTop = top - editor.clientHeight / 2 + lineHeight / 2;
+                    updateTypewriterAndHighlight();
+                }, 50);
+            }
         }
 
         searchInput.addEventListener('input', (e) => renderSearchResults(e.target.value));
@@ -2055,10 +2128,7 @@
                 items[selectedSearchIndex]?.classList.add('selected');
                 items[selectedSearchIndex]?.scrollIntoView({ block: 'nearest' });
             } else if (e.key === 'Enter') {
-                if (searchFilteredTabs[selectedSearchIndex]) {
-                    activateTab(searchFilteredTabs[selectedSearchIndex].id);
-                    closeSearch();
-                }
+                selectSearchResult(selectedSearchIndex);
             } else if (e.key === 'Escape') {
                 closeSearch();
             }
