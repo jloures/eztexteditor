@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-color: #ffffff;
+  --text-color: #1a1a1a;
+  --meta-color: #888888;
+  --accent-color: #3b82f6;
+  --border-color: #e5e7eb;
+}
+
+[data-theme='dark'] {
+  --bg-color: #121212;
+  --text-color: #e0e0e0;
+  --meta-color: #666666;
+  --border-color: #2d2d2d;
+}
+
+@layer base {
+  body {
+    @apply bg-ez-bg text-ez-text transition-colors duration-300;
+  }
+}
+
+/* Custom Scrollbar from original app */
+::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(128, 128, 128, 0.08);
+    border-radius: 20px;
+    transition: background 0.3s;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(128, 128, 128, 0.25);
+}
+
+/* Typography Overrides */
+.prose {
+    max-width: 100% !important;
+}
+
+[data-theme='dark'] .prose {
+    --tw-prose-body: var(--text-color);
+    --tw-prose-headings: #fff;
+    --tw-prose-links: var(--accent-color);
+    --tw-prose-code: #f472b6;
+    --tw-prose-pre-bg: #1e1e1e;
+    --tw-prose-quotes: #9ca3af;
+}
+
+/* Zen Mode */
+body.zen-mode header,
+body.zen-mode .sidebar {
+    display: none !important;
+}
+
+body.zen-mode main {
+    height: 100vh;
+}
