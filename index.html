@@ -566,7 +566,11 @@
         }
 
         body.zen-mode .zen-hint {
-            opacity: 1;
+            opacity: 0.8;
+        }
+
+        .zen-hint.faded {
+            opacity: 0.3 !important;
         }
 
         /* --- Typewriter Scrolling --- */
@@ -1663,16 +1667,21 @@
         function toggleZen() {
             document.body.classList.toggle('zen-mode');
             const isZen = document.body.classList.contains('zen-mode');
+            const hint = document.querySelector('.zen-hint');
+
             zenToggle.classList.toggle('btn-active', isZen);
             zenToggle.className = isZen ? 'fas fa-compress btn-icon btn-active' : 'fas fa-expand btn-icon';
+
             if (isZen) {
+                hint.classList.remove('faded');
                 // Auto-fade hint after a few seconds
-                const hint = document.querySelector('.zen-hint');
                 setTimeout(() => {
                     if (document.body.classList.contains('zen-mode')) {
-                        hint.style.opacity = '0.4';
+                        hint.classList.add('faded');
                     }
                 }, 3000);
+            } else {
+                hint.classList.remove('faded');
             }
         }
         zenToggle.addEventListener('click', toggleZen);
