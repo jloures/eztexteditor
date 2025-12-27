@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { FileText, CornerDownRight } from 'lucide-react';
 import { clsx } from 'clsx';
-import { useAppState } from '../../hooks/useAppState'; // Assuming we need types or helpers? No, props passed.
 
-export function SearchModal({ tabs, isOpen, onClose, onNavigate }) {
+export function SearchModal({ tabs, isOpen, onClose, onNavigate, modalData, activeTabId }) {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState([]);
     const [selectedIndex, setSelectedIndex] = useState(0);
     const inputRef = useRef(null);
     const resultsRef = useRef(null);
+
+    const isLocal = modalData?.local === true;
 
     // Focus input on open
     useEffect(() => {
@@ -19,47 +19,49 @@ export function SearchModal({ tabs, isOpen, onClose, onNavigate }) {
         }
     }, [isOpen]);
 
-    // Search Logic
+    // Search Logic (Match legacy indexing)
     useEffect(() => {
         if (!query.trim()) {
             setResults([]);
             return;
         }
 
-        const qLower = query.toLowerCase();
+        const qLower = query.trim().toLowerCase();
+        const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const highlightRegex = new RegExp(`(${escaped})`, 'gi');
         const matches = [];
 
         const searchRecursive = (items) => {
             items.forEach(item => {
                 if (item.type === 'note') {
+                    if (isLocal && item.id !== activeTabId) return;
+
                     // Title Match
-                    if (item.title.toLowerCase().includes(qLower)) {
+                    if (!isLocal && item.title.toLowerCase().includes(qLower)) {
                         matches.push({
                             id: item.id,
                             title: item.title,
                             type: 'title',
-                            score: 10,
+                            matchIndex: -1,
                         });
                     }
 
                     // Content Match
                     if (item.content) {
-                        const cLower = item.content.toLowerCase();
+                        const content = item.content;
+                        const cLower = content.toLowerCase();
                         let pos = cLower.indexOf(qLower);
                         let lastMatchPos = 0;
                         let lineNum = 1;
-
-                        // Find all matches in content (cap at 5 per file to avoid spam)
                         let fileMatches = 0;
-                        while (pos !== -1 && fileMatches < 5) {
-                            // Calculate line number
-                            const segment = item.content.substring(lastMatchPos, pos);
+
+                        while (pos !== -1 && fileMatches < 500) {
+                            const segment = content.substring(lastMatchPos, pos);
                             lineNum += (segment.match(/\n/g) || []).length;
 
-                            // Extract Snippet
-                            const start = Math.max(0, pos - 20);
-                            const end = Math.min(item.content.length, pos + query.length + 40);
-                            const snippet = item.content.substring(start, end);
+                            const start = Math.max(0, pos - 40);
+                            const end = Math.min(content.length, pos + qLower.length + 60);
+                            const snippet = content.substring(start, end);
 
                             matches.push({
                                 id: item.id,
@@ -67,7 +69,9 @@ export function SearchModal({ tabs, isOpen, onClose, onNavigate }) {
                                 type: 'content',
                                 snippet,
                                 lineNum,
-                                score: 5,
+                                matchIndex: pos,
+                                prefix: start > 0 ? '...' : '',
+                                suffix: end < content.length ? '...' : '',
                             });
 
                             lastMatchPos = pos;
@@ -85,7 +89,14 @@ export function SearchModal({ tabs, isOpen, onClose, onNavigate }) {
         setResults(matches);
         setSelectedIndex(0);
 
-    }, [query, tabs]);
+    }, [query, tabs, isLocal, activeTabId]);
+
+    const highlightText = (text) => {
+        const escaped = query.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        if (!escaped) return text;
+        const regex = new RegExp(`(${escaped})`, 'gi');
+        return text.replace(regex, '<span class="search-match-highlight">$1</span>');
+    };
 
     const handleKeyDown = (e) => {
         if (e.key === 'ArrowDown') {
@@ -96,9 +107,9 @@ export function SearchModal({ tabs, isOpen, onClose, onNavigate }) {
             setSelectedIndex(prev => (prev - 1 + results.length) % results.length);
         } else if (e.key === 'Enter') {
             e.preventDefault();
-            if (results[selectedIndex]) {
-                const match = results[selectedIndex];
-                onNavigate(match.id); // TODO: Navigate to specific line?
+            const match = results[selectedIndex === -1 ? 0 : selectedIndex];
+            if (match) {
+                onNavigate(match.id); // In legacy, it also sets scroll/selection. We handle that in Editor via effect if needed or pass pos.
                 onClose();
             }
         } else if (e.key === 'Escape') {
@@ -106,43 +117,43 @@ export function SearchModal({ tabs, isOpen, onClose, onNavigate }) {
         }
     };
 
-    // Scroll selected into view
-    useEffect(() => {
-        if (resultsRef.current && results.length > 0) {
-            const el = resultsRef.current.children[selectedIndex];
-            if (el) el.scrollIntoView({ block: 'nearest' });
-        }
-    }, [selectedIndex, results]);
-
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start justify-center pt-[20vh]" onClick={onClose}>
-            <div className="bg-ez-bg border border-ez-border rounded-lg shadow-2xl w-[600px] max-h-[60vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
-                <div className="p-4 border-b border-ez-border flex items-center gap-3">
-                    <div className="text-ez-meta"><FileText size={20} /></div>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-start justify-center pt-[15vh]" onClick={onClose}>
+            <div className="bg-ez-bg border border-ez-border rounded-xl shadow-2xl w-[600px] max-h-[70vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+                <div className="p-5 border-b border-ez-border flex items-center gap-4">
+                    <i className="fas fa-search text-ez-meta text-lg"></i>
                     <input
                         ref={inputRef}
                         type="text"
-                        placeholder="Search notes..."
-                        className="flex-1 bg-transparent outline-none text-lg text-ez-text placeholder-ez-meta"
+                        placeholder={isLocal ? "Search in this note..." : "Search all notes..."}
+                        className="flex-1 bg-transparent outline-none text-xl text-ez-text placeholder-ez-meta/50 font-medium"
                         value={query}
                         onChange={e => setQuery(e.target.value)}
                         onKeyDown={handleKeyDown}
                     />
-                    <div className="text-xs text-ez-meta border border-ez-border rounded px-1.5 py-0.5">Esc to close</div>
+                    <div className="text-[10px] text-ez-meta border border-ez-border rounded px-2 py-1 uppercase tracking-widest font-bold opacity-50">Esc</div>
                 </div>
 
-                <div className="overflow-y-auto flex-1 p-2" ref={resultsRef}>
+                <div className="overflow-y-auto flex-1 p-3" ref={resultsRef}>
                     {results.length === 0 && query && (
-                        <div className="text-center p-4 text-ez-meta">No results found</div>
+                        <div className="text-center p-10 text-ez-meta">
+                            <i className="fas fa-info-circle mb-2 text-2xl block opacity-20"></i>
+                            No matches found for "{query}"
+                        </div>
+                    )}
+                    {!query && (
+                        <div className="text-center p-10 text-ez-meta opacity-30 select-none italic text-sm">
+                            Type to begin searching...
+                        </div>
                     )}
                     {results.map((result, index) => (
                         <div
-                            key={`${result.id}-${index}`}
+                            key={`${result.id}-${index}-${result.matchIndex}`}
                             className={clsx(
-                                "p-3 rounded cursor-pointer mb-1 border border-transparent",
-                                index === selectedIndex ? "bg-ez-accent/10 border-ez-accent/50" : "hover:bg-ez-border/50"
+                                "search-item p-4 rounded-lg cursor-pointer mb-2 border border-transparent transition-all",
+                                index === selectedIndex && "selected"
                             )}
                             onClick={() => {
                                 onNavigate(result.id);
@@ -150,25 +161,28 @@ export function SearchModal({ tabs, isOpen, onClose, onNavigate }) {
                             }}
                             onMouseEnter={() => setSelectedIndex(index)}
                         >
-                            <div className="flex items-center gap-2 text-sm font-medium text-ez-text">
-                                <FileText size={14} className="opacity-50" />
-                                <span>{result.title}</span>
-                                {result.type === 'content' && <span className="text-ez-meta text-xs ml-auto">Line {result.lineNum}</span>}
+                            <div className="font-bold text-gray-200 flex items-center gap-2 mb-1">
+                                <i className="fas fa-file-alt text-xs opacity-50"></i>
+                                <span dangerouslySetInnerHTML={{ __html: result.type === 'title' ? highlightText(result.title) : result.title }} />
+                                {result.type === 'content' && <span className="ml-auto text-xs opacity-30">Line {result.lineNum}</span>}
                             </div>
                             {result.type === 'content' && (
-                                <div className="ml-6 mt-1 text-xs text-ez-meta font-mono truncate">
-                                    ...{result.snippet}...
+                                <div className="text-sm text-gray-500 truncate font-mono mt-1 opacity-80">
+                                    <span dangerouslySetInnerHTML={{ __html: result.prefix + highlightText(result.snippet) + result.suffix }} />
                                 </div>
+                            )}
+                            {result.type === 'title' && (
+                                <div className="text-[10px] text-blue-400/50 uppercase tracking-tighter font-bold">Match in title</div>
                             )}
                         </div>
                     ))}
                 </div>
 
-                <div className="p-2 border-t border-ez-border bg-ez-bg/50 text-xs text-ez-meta flex justify-between px-4">
-                    <span>{results.length} results</span>
-                    <div className="flex gap-2">
-                        <span>↑↓ to navigate</span>
-                        <span>↵ to select</span>
+                <div className="p-3 border-t border-ez-border bg-black/20 text-[10px] text-ez-meta flex justify-between px-6 font-bold tracking-widest uppercase">
+                    <span>{results.length} {results.length === 1 ? 'RESULT' : 'RESULTS'}</span>
+                    <div className="flex gap-4 opacity-50">
+                        <span>↑↓ Navigate</span>
+                        <span>↵ Select</span>
                     </div>
                 </div>
             </div>

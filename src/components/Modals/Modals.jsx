@@ -1,84 +1,89 @@
-import React, { useState, useEffect } from 'react';
-import { X, Trash2, AlertTriangle, Lock, KeyRound } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X } from 'lucide-react';
 import { SearchModal } from './SearchModal';
 import { GraphModal } from './GraphModal';
 import { ShareModal } from './ShareModal';
 import { InfoModal } from './InfoModal';
+import { SecuritySettingsModal } from './SecuritySettingsModal';
 import { createPortal } from 'react-dom';
-
-// Assuming these new components are defined elsewhere or will be created
-// For the purpose of this edit, we'll assume they are imported or defined.
-// If they are not provided, the code will break, but the instruction is to use them.
-// Let's create simple placeholders for them to make the code syntactically valid for now.
 
 const RenameModal = ({ initialValue, onConfirm, onCancel }) => {
     const [value, setValue] = useState(initialValue || '');
-    useEffect(() => {
-        setValue(initialValue || '');
-    }, [initialValue]);
+    useEffect(() => { setValue(initialValue || ''); }, [initialValue]);
 
     const handleConfirm = () => {
-        onConfirm(value);
+        if (!value.trim()) return;
+        if (value.includes('/') || value.includes('\\')) {
+            alert("Names cannot contain slashes '/' or '\\'.");
+            return;
+        }
+        onConfirm(value.trim());
     };
 
     return (
-        <>
-            <p className="text-sm text-ez-meta mb-4">Enter a new name for this note.</p>
+        <div className="modal-content">
+            <p className="text-sm text-ez-meta mb-4 leading-relaxed">Enter a new name for this item. Slashes are not allowed.</p>
             <input
                 type="text"
-                className="w-full bg-black/20 border border-ez-border rounded p-3 text-ez-text outline-none focus:border-ez-accent mb-6"
+                className="w-full bg-black/40 border border-ez-border rounded-xl p-4 text-ez-text outline-none focus:border-ez-accent mb-8 font-medium transition-all"
                 value={value}
                 onChange={e => setValue(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleConfirm()}
                 autoFocus
             />
-            <div className="flex justify-end gap-3">
-                <button onClick={onCancel} className="px-4 py-2 text-ez-meta hover:text-ez-text">Cancel</button>
-                <button onClick={handleConfirm} className="px-6 py-2 bg-ez-accent text-white rounded hover:opacity-90">Save Name</button>
+            <div className="flex justify-end gap-4">
+                <button onClick={onCancel} className="px-6 py-2 text-ez-meta hover:text-ez-text font-bold uppercase text-[10px] tracking-widest transition">Cancel</button>
+                <button onClick={handleConfirm} className="px-10 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-500 font-bold uppercase text-[10px] tracking-widest shadow-lg shadow-blue-500/20">Save Change</button>
             </div>
-        </>
+        </div>
     );
 };
 
-const ConfirmDeleteModal = ({ onConfirm, onCancel }) => (
-    <>
-        <div className="text-center mb-6">
-            <AlertTriangle className="mx-auto text-red-500 mb-4" size={48} />
-            <p className="text-ez-meta">This action cannot be undone. Always have a backup.</p>
+const ConfirmDeleteModal = ({ title, desc, onConfirm, onCancel }) => (
+    <div className="modal-content text-center py-4">
+        <div className="mb-10">
+            <i className="fas fa-triangle-exclamation text-orange-500 text-6xl mb-6 opacity-80" />
+            <h4 className="text-white font-bold text-2xl mb-3 tracking-tight">{title || "Are you sure?"}</h4>
+            <p className="text-ez-meta text-sm leading-relaxed max-w-[280px] mx-auto opacity-70">{desc || "This action cannot be undone. Always ensure you have a backup of your data."}</p>
         </div>
-        <div className="flex justify-center gap-3">
-            <button onClick={onCancel} className="px-4 py-2 text-ez-meta hover:text-ez-text">Cancel</button>
-            <button onClick={onConfirm} className="px-6 py-2 bg-red-600 text-white rounded hover:bg-red-500">
-                Yes, Delete
+        <div className="flex justify-center gap-4">
+            <button onClick={onCancel} className="px-8 py-2 text-ez-meta hover:text-ez-text font-bold uppercase text-[10px] tracking-widest transition">No, Cancel</button>
+            <button onClick={onConfirm} className="px-12 py-2 bg-red-600 text-white rounded-full hover:bg-red-500 font-bold uppercase text-[10px] tracking-widest shadow-lg shadow-red-500/20">
+                Yes, I'm Sure
             </button>
         </div>
-    </>
+    </div>
 );
 
-const SecurityModal = ({ isUnlock, onConfirm, onCancel }) => {
+const SecurityPasswordModal = ({ isUnlock, onConfirm, onCancel }) => {
     const [password, setPassword] = useState('');
-    const [error, setError] = useState(''); // Assuming error state might be managed here
+    const [shaking, setShaking] = useState(false);
+    const inputRef = useRef(null);
 
     const handleConfirm = async () => {
-        // In a real scenario, you'd likely pass setError back to parent or handle it here
-        // For now, just confirm
-        await onConfirm(password);
-        setPassword(''); // Clear password on success
-        setError('');
+        if (!password) return;
+        const success = await onConfirm(password);
+        if (!success) {
+            setShaking(true);
+            setTimeout(() => setShaking(false), 400);
+            setPassword('');
+            inputRef.current?.focus();
+        }
     };
 
     return (
-        <>
-            <p className="text-sm text-ez-meta mb-4">
+        <div className={shaking ? 'shake' : ''}>
+            <p className="text-sm text-ez-meta mb-6 leading-relaxed opacity-80">
                 {isUnlock
-                    ? "Enter password to decrypt your notes."
-                    : "Enter a key to encrypt this session. If you forget this, your data is lost forever."}
+                    ? "This notebook is protected with a password. Enter it below to unlock your session."
+                    : "Create a password to encrypt your notebook. Your data will be AES-256 encrypted using this key."}
             </p>
-            <div className="relative mb-6">
-                <Lock className="absolute left-3 top-3.5 text-ez-meta" size={16} />
+            <div className="relative mb-8">
+                <i className="fas fa-key absolute left-4 top-4 text-ez-meta/30 text-xs" />
                 <input
+                    ref={inputRef}
                     type="password"
-                    className="w-full bg-black/20 border border-ez-border rounded p-3 pl-10 text-ez-text outline-none focus:border-ez-accent"
+                    className="w-full bg-black/40 border border-ez-border rounded-xl p-4 pl-12 text-ez-text outline-none focus:border-blue-500/50 transition-all font-mono"
                     placeholder="Password..."
                     value={password}
                     onChange={e => setPassword(e.target.value)}
@@ -86,30 +91,31 @@ const SecurityModal = ({ isUnlock, onConfirm, onCancel }) => {
                     autoFocus
                 />
             </div>
-            {error && <p className="text-red-500 text-xs mb-4">{error}</p>}
-
-            <div className="flex justify-end gap-3">
-                {!isUnlock && <button onClick={onCancel} className="px-4 py-2 text-ez-meta hover:text-ez-text">Cancel</button>}
-                <button onClick={handleConfirm} className="px-6 py-2 bg-ez-accent text-white rounded hover:opacity-90">
-                    {isUnlock ? "Unlock" : "Encrypt"}
+            <div className="flex justify-end gap-4">
+                {!isUnlock && <button onClick={onCancel} className="px-6 py-2 text-ez-meta hover:text-ez-text font-bold uppercase text-[10px] tracking-widest transition">Cancel</button>}
+                <button onClick={handleConfirm} className={`px-10 py-3 bg-blue-600 text-white rounded-full hover:bg-blue-500 font-bold uppercase text-[10px] tracking-widest shadow-xl shadow-blue-500/30 transition-all ${isUnlock ? 'w-full' : ''}`}>
+                    {isUnlock ? "Unlock Note" : "Protect Notebook"}
                 </button>
             </div>
-        </>
+        </div>
     );
 };
 
-
-const Modal = ({ title, children, onClose, isOpen }) => {
+const ModalWrapper = ({ title, children, onClose, isOpen, maxWidth = "max-w-md" }) => {
     if (!isOpen) return null;
     return createPortal(
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-ez-bg border border-ez-border rounded-xl shadow-2xl w-full max-w-md p-6 relative">
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-xl font-bold text-ez-text">{title}</h3>
-                    <button onClick={onClose} className="text-ez-meta hover:text-ez-text transition">
-                        <X size={20} />
-                    </button>
-                </div>
+        <div className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex items-center justify-center p-4 animate-in fade-in duration-300" onClick={onClose}>
+            <div className={`bg-ez-bg border border-ez-border rounded-3xl shadow-[0_30px_100px_rgba(0,0,0,0.8)] w-full ${maxWidth} p-10 relative animate-in zoom-in duration-200`} onClick={e => e.stopPropagation()}>
+                {title && (
+                    <div className="flex justify-between items-center mb-8">
+                        <h3 className="text-2xl font-bold text-ez-text tracking-tight flex items-center gap-4">
+                            {title}
+                        </h3>
+                        <button onClick={onClose} className="text-ez-meta hover:text-ez-text transition p-2 bg-ez-border/20 rounded-full">
+                            <X size={18} />
+                        </button>
+                    </div>
+                )}
                 {children}
             </div>
         </div>,
@@ -117,14 +123,11 @@ const Modal = ({ title, children, onClose, isOpen }) => {
     );
 };
 
-export default function Modals({ actions, activeModal, closeModal, modalData, tabs }) {
-    // The state and effects for renameValue, password, error are now managed within the new modal components
-    // and are therefore removed from this parent Modals component.
+export default function Modals({ actions, activeModal, closeModal, modalData, state, hasKey, isLocked }) {
 
     return (
         <>
-            {/* Rename Modal */}
-            <Modal title="Rename Note" isOpen={activeModal === 'rename'} onClose={closeModal}>
+            <ModalWrapper title="Modify Asset" isOpen={activeModal === 'rename'} onClose={closeModal}>
                 <RenameModal
                     initialValue={modalData?.title}
                     onConfirm={(newName) => {
@@ -133,42 +136,52 @@ export default function Modals({ actions, activeModal, closeModal, modalData, ta
                     }}
                     onCancel={closeModal}
                 />
-            </Modal>
+            </ModalWrapper>
 
-            {/* Confirm Delete Modal */}
-            <Modal title="Are you sure?" isOpen={activeModal === 'confirm-delete'} onClose={closeModal}>
+            <ModalWrapper title="Destructive Action" isOpen={activeModal === 'confirm-delete'} onClose={closeModal}>
                 <ConfirmDeleteModal
+                    title={modalData?.id === 'ALL' ? "Purge Everything?" : "Remove Asset?"}
+                    desc={modalData?.id === 'ALL' ? "Warning: This will PERMANENTLY erase all notes and folders from your current session." : "Warning: This action will delete the selected item and all nested data. This cannot be undone."}
                     onConfirm={() => {
-                        actions.deleteTab(modalData.id);
+                        if (modalData?.id === 'ALL') actions.clearAll();
+                        else actions.deleteTab(modalData.id);
                         closeModal();
                     }}
                     onCancel={closeModal}
                 />
-            </Modal>
+            </ModalWrapper>
 
-            {/* Security/Password Modal */}
-            <Modal title={modalData?.isUnlock ? "Unlock Notebook" : "Set Encryption Password"} isOpen={activeModal === 'security'} onClose={closeModal}>
-                <SecurityModal
+            <ModalWrapper title={modalData?.isUnlock ? "Unlock Session" : "Apply Encryption"} isOpen={activeModal === 'security-password'} onClose={closeModal}>
+                <SecurityPasswordModal
                     isUnlock={modalData?.isUnlock}
-                    onConfirm={(password) => {
-                        actions.setEncryptionKey(password);
-                        closeModal();
+                    onConfirm={async (password) => {
+                        const success = await actions.setEncryptionKey(password);
+                        return success;
                     }}
                     onCancel={closeModal}
                 />
-            </Modal>
+            </ModalWrapper>
+
+            <SecuritySettingsModal
+                isOpen={activeModal === 'security-settings'}
+                onClose={closeModal}
+                state={state}
+                actions={actions}
+            />
 
             <SearchModal
                 isOpen={activeModal === 'search'}
                 onClose={closeModal}
-                tabs={tabs}
+                tabs={state.tabs}
                 onNavigate={actions.activateTab}
+                modalData={modalData}
+                activeTabId={state.activeTabId}
             />
 
             <GraphModal
                 isOpen={activeModal === 'graph'}
                 onClose={closeModal}
-                tabs={tabs}
+                tabs={state.tabs}
                 onNavigate={actions.activateTab}
             />
 

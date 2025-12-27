@@ -1,15 +1,37 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import clsx from 'clsx';
 import mermaid from 'mermaid';
 import hljs from 'highlight.js';
-import 'highlight.js/styles/github-dark.css'; // Or similar
+import 'highlight.js/styles/github-dark.css';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 
 // Initialize Mermaid
-mermaid.initialize({ startOnLoad: false, theme: 'dark' });
+mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' });
+
+// Ported from legacy for Wiki Suggestions placement
+function getCaretCoordinates(element, position) {
+    const div = document.createElement('div');
+    const style = getComputedStyle(element);
+    for (const prop of style) {
+        if (prop !== 'height') div.style[prop] = style[prop];
+    }
+    div.style.position = 'absolute';
+    div.style.visibility = 'hidden';
+    div.style.whiteSpace = 'pre-wrap';
+    div.style.width = element.clientWidth + 'px';
+    div.style.height = 'auto';
+    div.textContent = element.value.substring(0, position);
+    const span = document.createElement('span');
+    span.textContent = element.value.substring(position) || '.';
+    div.appendChild(span);
+    document.body.appendChild(div);
+    const { offsetTop: top, offsetLeft: left } = span;
+    document.body.removeChild(div);
+    return { top, left };
+}
 
 export default function Editor({ activeTabId, tabs, actions, settings }) {
     const findTab = (items, id) => {
@@ -29,6 +51,30 @@ export default function Editor({ activeTabId, tabs, actions, settings }) {
     const previewRef = useRef(null);
     const [toc, setToc] = useState([]);
 
+    // Wiki Suggestions State
+    const [suggestions, setSuggestions] = useState([]);
+    const [selectedSugIdx, setSelectedSugIdx] = useState(0);
+    const [sugPos, setSugPos] = useState({ top: 0, left: 0 });
+
+    // Helper: Get item path (recursive)
+    const getItemPath = useCallback((item, items = tabs, parent = null) => {
+        const findParent = (id, list, p = null) => {
+            for (const it of list) {
+                if (it.id === id) return p;
+                if (it.children) {
+                    const res = findParent(id, it.children, it);
+                    if (res) return res;
+                }
+            }
+            return null;
+        };
+        const p = findParent(item.id, items);
+        if (p) {
+            return (getItemPath(p, items) + '/' + item.title).replace(/^\//, '');
+        }
+        return item.title;
+    }, [tabs]);
+
     // Generate TOC
     useEffect(() => {
         if (!currentTab?.content) {
@@ -37,16 +83,13 @@ export default function Editor({ activeTabId, tabs, actions, settings }) {
         }
         const lines = currentTab.content.split('\n');
         const headers = [];
-        // Simple regex for headers # to ######
         const regex = /^(#{1,6})\s+(.*)$/;
-
-        lines.forEach((line, index) => {
+        lines.forEach((line) => {
             const match = line.match(regex);
             if (match) {
                 headers.push({
                     level: match[1].length,
                     text: match[2].trim(),
-                    // simple slug
                     slug: match[2].trim().toLowerCase().replace(/[^\w]+/g, '-')
                 });
             }
@@ -54,169 +97,185 @@ export default function Editor({ activeTabId, tabs, actions, settings }) {
         setToc(headers);
     }, [currentTab?.content]);
 
-    // Sync scroll
+    // Sync scroll & Typewriter Highlight
     const handleScroll = (e) => {
         if (lineNumbersRef.current) {
             lineNumbersRef.current.scrollTop = e.target.scrollTop;
         }
+        updateHighlightPos();
     };
+
+    const [highlightTop, setHighlightTop] = useState(40);
+    const updateHighlightPos = useCallback(() => {
+        if (!textareaRef.current || !settings.isTypewriterMode) return;
+        const el = textareaRef.current;
+        const text = el.value.substring(0, el.selectionStart);
+        const lineNum = text.split('\n').length;
+        const paddingTop = 40;
+        const lineHeight = 30;
+        const newTop = paddingTop + (lineNum - 1) * lineHeight - el.scrollTop;
+        setHighlightTop(newTop);
+    }, [settings.isTypewriterMode]);
+
+    // Typewriter Scrolling
+    useEffect(() => {
+        if (!settings.isTypewriterMode || !textareaRef.current || settings.isPreviewMode) return;
+        const el = textareaRef.current;
+        const text = el.value.substring(0, el.selectionStart);
+        const lineNum = text.split('\n').length;
+        const lineHeight = 30;
+        const paddingTop = 40;
+        const targetScroll = (lineNum - 1) * lineHeight + paddingTop - (el.clientHeight / 2) + (lineHeight / 2);
+
+        if (Math.abs(el.scrollTop - targetScroll) > 5) {
+            el.scrollTop = targetScroll;
+        }
+    }, [currentTab?.content, settings.isTypewriterMode, settings.isPreviewMode]);
 
     const handleInput = (e) => {
         actions.updateTabContent(activeTabId, e.target.value);
+        updateWikiSuggestions(e.target);
+    };
+
+    const updateWikiSuggestions = (el) => {
+        const cursor = el.selectionStart;
+        const text = el.value.substring(0, cursor);
+        const match = text.match(/\[\[([^\]]*)$/);
+
+        if (match) {
+            const query = match[1].toLowerCase();
+            const allNotes = [];
+            const gather = (items) => {
+                items.forEach(i => {
+                    if (i.type === 'note') allNotes.push(i);
+                    else if (i.children) gather(i.children);
+                });
+            };
+            gather(tabs);
+            const filtered = allNotes.filter(n => n.title.toLowerCase().includes(query));
+            if (filtered.length > 0) {
+                setSuggestions(filtered);
+                setSelectedSugIdx(0);
+                const coords = getCaretCoordinates(el, cursor);
+                setSugPos({ top: coords.top + 30, left: coords.left });
+            } else {
+                setSuggestions([]);
+            }
+        } else {
+            setSuggestions([]);
+        }
+    };
+
+    const insertWikiLink = (note) => {
+        const el = textareaRef.current;
+        const path = getItemPath(note);
+        const cursor = el.selectionStart;
+        const text = el.value;
+        const before = text.substring(0, cursor).replace(/\[\[[^\[]*$/, '');
+        const after = text.substring(cursor);
+        const newValue = before + '[[' + path + ']]' + after;
+        actions.updateTabContent(activeTabId, newValue);
+        setSuggestions([]);
+        el.focus();
     };
 
     const [lineCount, setLineCount] = useState(1);
     useEffect(() => {
         if (!currentTab) return;
-        const lines = (currentTab.content || '').split('\n').length;
-        setLineCount(lines);
+        setLineCount((currentTab.content || '').split('\n').length);
     }, [currentTab?.content]);
 
-    // WikiLink Click Handler
+    // Preview Clicks for WikiLinks
     useEffect(() => {
-        // We need to attach listeners to the preview container for delegated events
-        // or handle clicks globally if they bubble up.
-        // React's onClick on dangerouslySetInnerHTML doesn't catch inner clicks easily for non-react nodes.
         const handlePreviewClick = (e) => {
             if (e.target.classList.contains('wiki-link')) {
                 const targetName = e.target.getAttribute('data-tab-name');
-                // Logic to find tab by name and activate it
-                // We need to pass this up or handle it here.
-                // Ideally `actions.activateTabByName` or similar.
-                // For now, let's try to find it locally.
-                const findIdByName = (items, name) => {
+                const findNote = (items, name) => {
                     for (const item of items) {
-                        if (item.type === 'note' && item.title.toLowerCase() === name.toLowerCase()) return item.id;
+                        if (item.type === 'note') {
+                            const path = getItemPath(item);
+                            if (path.toLowerCase() === name.toLowerCase() || item.title.toLowerCase() === name.toLowerCase()) return item.id;
+                        }
                         if (item.children) {
-                            const found = findIdByName(item.children, name);
+                            const found = findNote(item.children, name);
                             if (found) return found;
                         }
                     }
                     return null;
                 };
-                const targetId = findIdByName(tabs, targetName);
+                const targetId = findNote(tabs, targetName);
                 if (targetId) {
                     actions.activateTab(targetId);
-                } else {
-                    // TODO: Propose creation?
-                    alert(`Note "${targetName}" not found.`);
+                } else if (window.confirm(`Note "${targetName}" not found. Create it?`)) {
+                    const id = actions.createTab('note');
+                    actions.renameTab(id, targetName);
+                    actions.activateTab(id);
                 }
             }
         };
-
         const el = previewRef.current;
         if (el) el.addEventListener('click', handlePreviewClick);
         return () => el && el.removeEventListener('click', handlePreviewClick);
-    }, [tabs, actions]);
+    }, [tabs, actions, getItemPath]);
 
-
-    // Effect to run Mermaid and Katex after render
-    // Effect to run Mermaid after render
     useEffect(() => {
         if (settings.isPreviewMode && previewRef.current) {
-            mermaid.run({
-                nodes: previewRef.current.querySelectorAll('.mermaid')
-            });
+            mermaid.run({ nodes: previewRef.current.querySelectorAll('.mermaid') });
         }
     }, [currentTab?.content, settings.isPreviewMode]);
 
-
-    if (!currentTab) {
-        return (
-            <div className="flex-1 flex flex-col items-center justify-center text-ez-meta bg-ez-bg select-none">
-                <p>Select a note to view</p>
-            </div>
-        );
-    }
-
-    const { content } = currentTab;
-    const showPreview = settings?.isPreviewMode;
-    const showLineNumbers = settings?.showLineNumbers;
+    if (!currentTab) return <div className="flex-1 flex items-center justify-center text-ez-meta bg-ez-bg select-none">Select a note to view</div>;
 
     const renderPreview = () => {
-        // Custom Renderer for Marked
         const renderer = new marked.Renderer();
-
-        // Handle Mermaid
         renderer.code = (code, lang) => {
-            if (lang === 'mermaid') {
-                return `<div class="mermaid">${code}</div>`;
-            }
-            // Default highlight
-            const language = hljs.getLanguage(lang) ? lang : 'plaintext';
-            const highlighted = hljs.highlight(code, { language }).value;
-            return `<pre><code class="hljs language-${language}">${highlighted}</code></pre>`;
+            if (lang === 'mermaid') return `<div class="mermaid">${code}</div>`;
+            try {
+                const language = hljs.getLanguage(lang) ? lang : 'plaintext';
+                return `<pre><code class="hljs language-${language}">${hljs.highlight(code, { language }).value}</code></pre>`;
+            } catch (e) { return `<pre><code>${code}</code></pre>`; }
         };
-
-        let processedContent = content || '';
-
-        // 1. Math Pre-processing (Simple approach: replace blocks, then inline)
-        // We use a temporary placeholders technique to avoid markdown messing up math
-        // But simpler: just replace with katex.renderToString immediately.
-
-        // Display Math $$...$$
-        processedContent = processedContent.replace(/\$\$([\s\S]+?)\$\$/g, (match, formula) => {
-            try {
-                return katex.renderToString(formula, { displayMode: true, throwOnError: false });
-            } catch (e) {
-                return match;
-            }
+        let processedContent = currentTab.content || '';
+        processedContent = processedContent.replace(/\$\$([\s\S]+?)\$\$/g, (m, f) => {
+            try { return katex.renderToString(f, { displayMode: true, throwOnError: false }); } catch (e) { return m; }
         });
-
-        // Inline Math $...$
-        processedContent = processedContent.replace(/\$([^$\n]+?)\$/g, (match, formula) => {
-            try {
-                return katex.renderToString(formula, { displayMode: false, throwOnError: false });
-            } catch (e) {
-                return match;
-            }
+        processedContent = processedContent.replace(/\$([^$\n]+?)\$/g, (m, f) => {
+            try { return katex.renderToString(f, { displayMode: false, throwOnError: false }); } catch (e) { return m; }
         });
-
-        // 2. WikiLinks
-        processedContent = processedContent.replace(/\[\[([^\]]+)\]\]/g, (match, text) => {
-            return `<span class="wiki-link text-ez-accent cursor-pointer hover:underline border-b border-dashed border-ez-accent" data-tab-name="${text}">${text}</span>`;
+        processedContent = processedContent.replace(/\[\[([^\]]+)\]\]/g, (m, t) => {
+            return `<span class="wiki-link" data-tab-name="${t}">${t}</span>`;
         });
+        // Auto-embed image links
+        processedContent = processedContent.replace(/(?<![!\[\(])(https?:\/\/\S+\.(?:png|jpg|jpeg|gif|webp|svg|avif))(?![\]\)])/gi, '![]($1)');
 
-        marked.setOptions({ renderer });
-
+        marked.setOptions({ renderer, breaks: true, gfm: true });
         const rawMarkup = marked.parse(processedContent);
-        // We need to allow KaTeX math classes/tags and Mermaid divs
         const cleanMarkup = DOMPurify.sanitize(rawMarkup, {
             ADD_TAGS: ['span', 'div', 'math', 'annotation', 'semantics', 'mrow', 'mn', 'mo', 'mi', 'msup', 'sub', 'sup'],
             ADD_ATTR: ['class', 'data-tab-name', 'target', 'style', 'xmlns', 'viewBox', 'd', 'fill', 'stroke']
         });
-
         return { __html: cleanMarkup };
     };
 
     return (
         <div id="editor-area" className="flex-1 relative h-full flex bg-ez-bg text-ez-text overflow-hidden">
+            {settings.isZen && <div className="zen-hint">Press <b>Esc</b> to exit Zen Mode</div>}
 
-            {showLineNumbers && !showPreview && (
+            {settings.showLineNumbers && !settings.isPreviewMode && (
                 <div
                     ref={lineNumbersRef}
-                    className="w-[50px] pt-10 pb-10 text-right pr-3 bg-gray-50/5 dark:bg-gray-900/20 text-ez-meta border-r border-ez-border font-mono text-lg leading-relaxed select-none overflow-hidden"
+                    className="w-[60px] pt-10 pb-10 text-right pr-3 bg-gray-50/5 dark:bg-gray-900/10 text-ez-meta border-r border-ez-border font-mono text-lg leading-relaxed select-none overflow-hidden"
                     style={{ lineHeight: '30px' }}
                 >
-                    {Array.from({ length: lineCount }).map((_, i) => (
-                        <div key={i}>{i + 1}</div>
-                    ))}
+                    {Array.from({ length: lineCount }).map((_, i) => <div key={i}>{i + 1}</div>)}
                     {settings.isTypewriterMode && <div className="h-[50vh]" />}
                 </div>
             )}
 
-            {!showPreview ? (
+            {!settings.isPreviewMode ? (
                 <>
                     {settings.isTypewriterMode && (
-                        <div
-                            className="line-highlight"
-                            style={{
-                                top: '50%',
-                                marginTop: '-15px',
-                                width: '100%',
-                                display: 'block'
-                            }}
-                        />
+                        <div className="line-highlight" style={{ top: `${highlightTop}px`, display: 'block' }} />
                     )}
                     <textarea
                         ref={textareaRef}
@@ -224,40 +283,50 @@ export default function Editor({ activeTabId, tabs, actions, settings }) {
                             "w-full h-full p-10 bg-transparent resize-none outline-none font-mono text-lg text-ez-text leading-relaxed relative z-10",
                             settings.isTypewriterMode && "pb-[50vh]"
                         )}
-                        style={{ lineHeight: '30px', whiteSpace: showLineNumbers ? 'pre' : 'pre-wrap' }}
-                        value={content || ''}
+                        style={{ lineHeight: '30px', whiteSpace: settings.showLineNumbers ? 'pre' : 'pre-wrap' }}
+                        value={currentTab.content || ''}
                         onChange={handleInput}
                         onScroll={handleScroll}
+                        onSelect={updateHighlightPos}
+                        onKeyDown={(e) => {
+                            if (suggestions.length > 0) {
+                                if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedSugIdx(prev => (prev + 1) % suggestions.length); }
+                                else if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedSugIdx(prev => (prev - 1 + suggestions.length) % suggestions.length); }
+                                else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertWikiLink(suggestions[selectedSugIdx]); }
+                                else if (e.key === 'Escape') { setSuggestions([]); }
+                            }
+                        }}
                         placeholder="Start typing..."
                         spellCheck="false"
                     />
+                    {suggestions.length > 0 && (
+                        <div id="wikiSuggestion" style={{ top: sugPos.top, left: sugPos.left, display: 'block' }}>
+                            {suggestions.map((note, i) => (
+                                <div
+                                    key={note.id}
+                                    className={`suggestion-item ${i === selectedSugIdx ? 'selected' : ''}`}
+                                    onClick={() => insertWikiLink(note)}
+                                >
+                                    <i className="fas fa-file-alt"></i> {getItemPath(note)}
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </>
             ) : (
                 <div className="flex w-full h-full overflow-hidden">
-                    {/* TOC Sidebar if needed, or just inline. Legacy had sticky TOC. */}
-                    <div
-                        ref={previewRef}
-                        className="flex-1 h-full p-10 overflow-y-auto prose dark:prose-invert max-w-none"
-                        dangerouslySetInnerHTML={renderPreview()}
-                    />
-
-                    {/* TOC Sidebar */}
-                    {toc.length > 0 && (
-                        <div className="w-[200px] hidden lg:block h-full overflow-y-auto border-l border-ez-border p-4 text-sm text-ez-meta flex-shrink-0">
-                            <h4 className="font-bold mb-4 uppercase text-xs tracking-wider opacity-70">Table of Contents</h4>
-                            <ul>
+                    <div ref={previewRef} className="flex-1 h-full p-10 overflow-y-auto prose dark:prose-invert max-w-none" dangerouslySetInnerHTML={renderPreview()} />
+                    {toc.length > 2 && (
+                        <div className="w-[220px] hidden lg:block h-full overflow-y-auto border-l border-ez-border p-4 text-sm text-ez-meta flex-shrink-0" id="toc-container" style={{ display: 'block' }}>
+                            <h4 className="font-bold mb-4 uppercase text-[0.7rem] tracking-wider opacity-70">Table of Contents</h4>
+                            <ul id="toc-list">
                                 {toc.map((h, i) => (
                                     <li key={i} style={{ marginLeft: (h.level - 1) * 12 + 'px' }} className="mb-2">
-                                        <a
-                                            href={`#${h.slug}`}
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                const el = document.getElementById(h.slug);
-                                                if (el) el.scrollIntoView({ behavior: 'smooth' });
-                                            }}
-                                            className="hover:text-ez-text transition block truncate"
-                                            title={h.text}
-                                        >
+                                        <a href={`#${h.slug}`} onClick={(e) => {
+                                            e.preventDefault();
+                                            const el = document.getElementById(h.slug);
+                                            if (el) el.scrollIntoView({ behavior: 'smooth' });
+                                        }} className="hover:text-ez-accent transition block truncate" title={h.text}>
                                             {h.text}
                                         </a>
                                     </li>

@@ -7,99 +7,128 @@ import Modals from './components/Modals/Modals';
 import { PanicOverlay } from './components/PanicOverlay';
 import { startTutorial } from './utils/tutorial';
 
+const IS_MAC = typeof window !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+
 function App() {
   const { state, actions, isLoaded, isLocked, modal, showPanic, hasKey } = useAppState();
 
-  // Global Effects
-  useEffect(() => {
-    if (state.settings.isZen) {
-      document.body.classList.add('zen-mode');
-    } else {
-      document.body.classList.remove('zen-mode');
-    }
-  }, [state.settings.isZen]);
-
-  useEffect(() => {
-    if (state.settings.theme === 'dark') {
-      document.body.setAttribute('data-theme', 'dark');
-    } else {
-      document.body.removeAttribute('data-theme');
-    }
-  }, [state.settings.theme]);
-
-  // Keyboard Shortcuts
+  // Handle Global Shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Alt+P : Panic
-      if (e.altKey && e.code === 'KeyP') {
-        e.preventDefault();
-        actions.togglePanic();
-      }
-      // Alt+Z : Zen
-      if (e.altKey && e.code === 'KeyZ') {
-        e.preventDefault();
-        actions.updateSettings({ isZen: !state.settings.isZen });
-      }
-      // Alt+G : Graph
-      if (e.altKey && e.code === 'KeyG') {
-        e.preventDefault();
-        modal.openModal('graph');
-      }
-      // Cmd+K : Search
-      if ((e.metaKey || e.ctrlKey) && e.code === 'KeyK') {
+      const isMod = IS_MAC ? e.metaKey : e.ctrlKey;
+      const key = e.key.toLowerCase();
+
+      // Global Search: Cmd+Shift+F
+      if (isMod && e.shiftKey && key === 'f') {
         e.preventDefault();
         modal.openModal('search');
       }
-      // Esc : Exit Zen or Close Modal
-      if (e.code === 'Escape') {
-        if (modal.activeModal) {
-          modal.closeModal();
-        } else if (state.settings.isZen) {
-          actions.updateSettings({ isZen: false });
-        }
+      // Local Search: Cmd+F
+      else if (isMod && !e.shiftKey && key === 'f') {
+        e.preventDefault();
+        modal.openModal('search', { local: true }); // We'll adapt search modal
+      }
+      // Save/Download: Cmd+S
+      else if (isMod && !e.shiftKey && !e.altKey && key === 's') {
+        e.preventDefault();
+        actions.backupNotebook();
+      }
+      // Toggle Preview: Cmd+Shift+P
+      else if (isMod && e.shiftKey && key === 'p') {
+        e.preventDefault();
+        actions.updateSettings({ isPreviewMode: !state.settings.isPreviewMode });
+      }
+      // Info: Cmd+/
+      else if (isMod && key === '/') {
+        e.preventDefault();
+        modal.openModal('info');
+      }
+      // Share: Cmd+Shift+S
+      else if (isMod && e.shiftKey && key === 's') {
+        e.preventDefault();
+        modal.openModal('share');
+      }
+      // Encryption: Cmd+Shift+L
+      else if (isMod && e.shiftKey && key === 'l') {
+        e.preventDefault();
+        modal.openModal('security');
+      }
+      // New Scratch / Clear All: Cmd+Shift+Delete/Backspace
+      else if (isMod && e.shiftKey && (e.key === 'Delete' || e.key === 'Backspace')) {
+        e.preventDefault();
+        modal.openModal('confirm-delete', { id: 'ALL' });
+      }
+      // Theme: Cmd+Shift+D
+      else if (isMod && e.shiftKey && key === 'd') {
+        e.preventDefault();
+        actions.updateSettings({ theme: state.settings.theme === 'dark' ? 'light' : 'dark' });
+      }
+      // Copy All: Cmd+Alt+C
+      else if (isMod && e.altKey && key === 'c') {
+        e.preventDefault();
+        actions.copyCurrentTab();
+      }
+      // Line Numbers: Cmd+H
+      else if (isMod && key === 'h') {
+        e.preventDefault();
+        actions.updateSettings({ showLineNumbers: !state.settings.showLineNumbers });
+      }
+      // Graph View: Alt+G
+      else if (e.altKey && key === 'g') {
+        e.preventDefault();
+        modal.openModal('graph');
+      }
+      // Mac specific toggles
+      else if (IS_MAC && e.metaKey && !e.shiftKey && !e.altKey && !e.ctrlKey) {
+        if (key === 'e') { e.preventDefault(); actions.updateSettings({ isZen: !state.settings.isZen }); }
+        else if (key === 'j') { e.preventDefault(); actions.updateSettings({ isTypewriterMode: !state.settings.isTypewriterMode }); }
+        else if (key === 'k') { e.preventDefault(); actions.togglePanic(); }
+      }
+      // Windows Alt toggles
+      else if (!IS_MAC && e.altKey && !e.metaKey && !e.shiftKey && !e.ctrlKey) {
+        if (key === 'z') { e.preventDefault(); actions.updateSettings({ isZen: !state.settings.isZen }); }
+        else if (key === 't') { e.preventDefault(); actions.updateSettings({ isTypewriterMode: !state.settings.isTypewriterMode }); }
+        else if (key === 'p') { e.preventDefault(); actions.togglePanic(); }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [actions, modal, state.settings.isZen, showPanic]);
+  }, [state, actions, modal]);
 
-  // Tutorial Auto-Start
+  // Zen & Theme Effects
   useEffect(() => {
-    if (isLoaded && !modal.activeModal && !isLocked) {
-      // Simple check to debounce basic initial load
-      const hasSeen = localStorage.getItem('ez_has_seen_tutorial');
-      if (!hasSeen) {
-        setTimeout(() => {
-          startTutorial();
-          localStorage.setItem('ez_has_seen_tutorial', 'true');
-        }, 1000);
-      }
-    }
-  }, [isLoaded, modal.activeModal, isLocked]);
+    document.body.classList.toggle('zen-mode', state.settings.isZen);
+    document.body.setAttribute('data-theme', state.settings.theme);
+  }, [state.settings.isZen, state.settings.theme]);
 
-  // Calculate Word Count
-  const currentTab = useMemo(() => {
-    if (!state.activeTabId) return null;
-    const find = (items) => {
+  // Handle Tutorial Auto-Start (Legacy logic)
+  useEffect(() => {
+    if (isLoaded && state.tabs.length === 1 && state.tabs[0].title === 'Untitled' && state.tabs[0].content === '') {
+      // Optional: auto-trigger logic if desired, but typically we let user trigger.
+      // Legacy code didn't auto-start, just configured labels.
+    }
+  }, [isLoaded]);
+
+  const activeTab = useMemo(() => {
+    const findNote = (items) => {
       for (const item of items) {
         if (item.id === state.activeTabId) return item;
         if (item.children) {
-          const res = find(item.children);
-          if (res) return res;
+          const found = findNote(item.children);
+          if (found) return found;
         }
       }
-      return null;
     };
-    return find(state.tabs);
+    return findNote(state.tabs);
   }, [state.tabs, state.activeTabId]);
 
   const wordCount = useMemo(() => {
-    if (!currentTab || !currentTab.content) return 0;
-    return currentTab.content.trim().split(/\s+/).filter(w => w.length > 0).length;
-  }, [currentTab]);
+    if (!activeTab || !activeTab.content) return 0;
+    return activeTab.content.trim().split(/\s+/).filter(word => word.length > 0).length;
+  }, [activeTab]);
 
-  if (!isLoaded) return <div className="flex items-center justify-center h-screen bg-ez-bg text-ez-meta">Loading...</div>;
+  if (!isLoaded) return <div className="h-screen bg-ez-bg flex items-center justify-center text-ez-meta">Loading...</div>;
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-ez-bg text-ez-text font-sans">
@@ -110,7 +139,6 @@ function App() {
         wordCount={wordCount}
         isLocked={hasKey || isLocked}
       />
-
       <main className="flex flex-1 overflow-hidden relative">
         <Sidebar
           tabs={state.tabs}
@@ -129,13 +157,16 @@ function App() {
 
       <Modals
         activeModal={modal.activeModal}
-        closeModal={modal.closeModal}
+        onClose={modal.closeModal}
+        onOpenModal={modal.openModal}
         modalData={modal.modalData}
+        state={state}
         actions={actions}
-        tabs={state.tabs}
+        hasKey={hasKey}
+        isLocked={isLocked}
       />
 
-      <PanicOverlay visible={showPanic} />
+      {showPanic && <PanicOverlay onExit={actions.togglePanic} />}
     </div>
   );
 }
