@@ -272,22 +272,20 @@ export function useAppState() {
         });
     }, []);
 
-    // NEW: Download & Copy
-    const downloadCurrentTab = useCallback(() => {
-        // NEW: Download/Backup (Legacy Style)
-        const backupNotebook = useCallback(async () => {
-            try {
-                const dataToSave = JSON.stringify(state);
-                let hash = '';
-                if (encryptionKey) {
-                    hash = 'enc_' + await encryptText(dataToSave, encryptionKey);
-                } else {
-                    hash = await encodeToUrl(dataToSave);
-                }
+    // NEW: Download/Backup (Legacy Style)
+    const backupNotebook = useCallback(async () => {
+        try {
+            const dataToSave = JSON.stringify(state);
+            let hash = '';
+            if (encryptionKey) {
+                hash = 'enc_' + await encryptText(dataToSave, encryptionKey);
+            } else {
+                hash = await encodeToUrl(dataToSave);
+            }
 
-                const fullUrl = window.location.origin + window.location.pathname + '#' + hash;
+            const fullUrl = window.location.origin + window.location.pathname + '#' + hash;
 
-                const htmlContent = `<!DOCTYPE html>
+            const htmlContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -307,22 +305,21 @@ export function useAppState() {
 </body>
 </html>`;
 
-                const zip = new JSZip();
-                zip.file("EzTextEditor_Backup.html", htmlContent);
+            const zip = new JSZip();
+            zip.file("EzTextEditor_Backup.html", htmlContent);
 
-                const blob = await zip.generateAsync({ type: "blob" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = "notebook_backup.zip";
-                a.click();
-                URL.revokeObjectURL(url);
-            } catch (e) {
-                console.error("Export failed:", e);
-                alert("Failed to export notebook.");
-            }
-        }, [state, encryptionKey]);
-    }, []);
+            const blob = await zip.generateAsync({ type: "blob" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = "notebook_backup.zip";
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            console.error("Export failed:", e);
+            alert("Failed to export notebook.");
+        }
+    }, [state, encryptionKey]);
 
     const copyCurrentTab = useCallback(() => {
         setState(current => {
@@ -383,7 +380,6 @@ export function useAppState() {
             moveItem,
             updateSettings,
             setEncryptionKey: setEncryptionKeyAction,
-            togglePanic,
             togglePanic,
             backupNotebook,
             copyCurrentTab
