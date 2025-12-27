@@ -1360,13 +1360,19 @@
             return Math.random().toString(36).substr(2, 9);
         }
 
-        function createTab(title = "Untitled", content = "", type = "note") {
+        function createTab(title = "Untitled", content = "", type = "note", targetList = appState.tabs) {
+            let finalTitle = title;
+            let counter = 1;
+            while (targetList.some(item => item.title.toLowerCase() === finalTitle.toLowerCase())) {
+                finalTitle = `${title} ${++counter}`;
+            }
             const id = generateId();
-            const item = { id, title, content, type };
+            const item = { id, title: finalTitle, content, type };
             if (type === 'folder') item.children = [];
-            appState.tabs.push(item);
+            targetList.push(item);
             return id;
         }
+
 
         // Rename logic state
         let tabToRenameId = null;
@@ -1401,6 +1407,13 @@
                 const tab = findItemById(tabToRenameId);
                 const newTitle = renameInput.value.trim();
                 if (tab && newTitle) {
+                    const parent = findParent(tabToRenameId);
+                    const siblings = parent ? parent.children : appState.tabs;
+                    const exists = siblings.some(s => s.id !== tabToRenameId && s.title.toLowerCase() === newTitle.toLowerCase());
+                    if (exists) {
+                        alert("An item with this name already exists in this folder.");
+                        return;
+                    }
                     tab.title = newTitle;
                     renderTabs();
                     performSave();
@@ -1408,6 +1421,7 @@
             }
             closeRenameModal();
         });
+
 
         renameCancel.addEventListener('click', closeRenameModal);
 
@@ -1616,6 +1630,44 @@
             return null;
         }
 
+        function findParent(id, items = appState.tabs, parent = null) {
+            for (const item of items) {
+                if (item.id === id) return parent;
+                if (item.type === 'folder' && item.children) {
+                    const found = findParent(id, item.children, item);
+                    if (found) return found;
+                }
+            }
+            return null;
+        }
+
+        function getItemPath(item, items = appState.tabs) {
+            const parent = findParent(item.id, items);
+            if (parent) {
+                return (getItemPath(parent, items) + '/' + item.title).replace(/^\//, '');
+            }
+            return item.title;
+        }
+
+
+        function findItemByPath(path, items = appState.tabs) {
+            const parts = path.split(/[\/\\]/).map(p => p.trim());
+            let currentItems = items;
+            let currentItem = null;
+
+            for (let i = 0; i < parts.length; i++) {
+                const part = parts[i].toLowerCase();
+                currentItem = currentItems.find(item => item.title.toLowerCase() === part);
+                if (!currentItem) return null;
+                if (i < parts.length - 1) {
+                    if (currentItem.type !== 'folder') return null;
+                    currentItems = currentItem.children;
+                }
+            }
+            return currentItem;
+        }
+
+
         function findTabByTitle(title, items = appState.tabs) {
             for (const item of items) {
                 if (item.type === 'note' && item.title === title) return item;
@@ -1642,14 +1694,30 @@
             const item = removeItemById(sourceId);
             if (!item) return;
 
+            let targetList;
             if (isTargetFolder) {
                 const folder = findItemById(targetId);
-                folder.children.push(item);
+                targetList = folder.children;
             } else {
-                // Find target parent and index
-                insertAfter(item, targetId, appState.tabs);
+                const targetParent = findParent(targetId);
+                targetList = targetParent ? targetParent.children : appState.tabs;
+            }
+
+            // Conflict resolution
+            let finalTitle = item.title;
+            let counter = 1;
+            while (targetList.some(s => s.id !== item.id && s.title.toLowerCase() === finalTitle.toLowerCase())) {
+                finalTitle = `${item.title} ${++counter}`;
+            }
+            item.title = finalTitle;
+
+            if (isTargetFolder) {
+                targetList.push(item);
+            } else {
+                insertAfter(item, targetId, targetList);
             }
         }
+
 
         function insertAfter(item, targetId, list) {
             const idx = list.findIndex(i => i.id === targetId);
@@ -1996,22 +2064,29 @@
             previewEl.querySelectorAll('.wiki-link').forEach(link => {
                 link.onclick = () => {
                     const targetName = link.getAttribute('data-tab-name');
-                    const targetTab = findTabByTitle(targetName);
+                    const targetTab = targetName.includes('/') ? findItemByPath(targetName) : findTabByTitle(targetName);
                     if (targetTab) {
                         activateTab(targetTab.id);
-                        if (isPreviewMode) togglePreview(); // Back to edit mode to see it? Or keep in preview? 
-                        // Usually people want to see the content. If the new tab has content, stay in preview?
-                        // Let's just follow the switch and let the user decide.
+                        if (isPreviewMode) togglePreview();
                         if (isPreviewMode) renderMarkdownPreview();
                     } else {
-                        // Extension: Create new tab if it doesn't exist?
                         showConfirm("Tab Not Found", `Create a new note named "${targetName}"?`, () => {
-                            const newId = createTab(targetName);
+                            let targetList = appState.tabs;
+                            let title = targetName;
+                            if (targetName.includes('/')) {
+                                const parts = targetName.split(/[\/\\]/);
+                                title = parts.pop();
+                                const folderPath = parts.join('/');
+                                const folder = findItemByPath(folderPath);
+                                if (folder && folder.type === 'folder') targetList = folder.children;
+                            }
+                            const newId = createTab(title, "", "note", targetList);
                             activateTab(newId);
                             renderTabs();
                             performSave();
                         });
                     }
+
                 };
             });
 
@@ -2746,12 +2821,14 @@
                         selectedSuggestionIndex = 0;
 
                         filtered.forEach((note, index) => {
+                            const fullPath = getItemPath(note);
                             const item = document.createElement('div');
                             item.className = `suggestion-item ${index === 0 ? 'selected' : ''}`;
-                            item.innerHTML = `<i class="fas fa-file-alt"></i> ${note.title}`;
-                            item.onclick = () => insertWikiLink(note.title);
+                            item.innerHTML = `<i class="fas fa-file-alt"></i> ${fullPath}`;
+                            item.onclick = () => insertWikiLink(fullPath);
                             wikiSuggestion.appendChild(item);
                         });
+
 
                         const { top, left } = getCaretCoordinates(editor, cursor);
                         wikiSuggestion.style.display = 'block';
@@ -2864,12 +2941,15 @@
             function gatherGraphData(items) {
                 items.forEach(item => {
                     if (item.type === 'note') {
-                        nodes.push({ id: item.title, title: item.title });
+                        const fullPath = getItemPath(item);
+                        nodes.push({ id: fullPath, title: item.title, path: fullPath });
                         const linkMatches = item.content.matchAll(/\[\[([^\]]+)\]\]/g);
                         for (const match of linkMatches) {
-                            const target = match[1].trim();
-                            // Only link if target exists as a node
-                            links.push({ source: item.title, target: target });
+                            const targetName = match[1].trim();
+                            const targetTab = targetName.includes('/') ? findItemByPath(targetName) : findTabByTitle(targetName);
+                            if (targetTab) {
+                                links.push({ source: fullPath, target: getItemPath(targetTab) });
+                            }
                         }
                     } else if (item.children) {
                         gatherGraphData(item.children);
@@ -2914,7 +2994,7 @@
 
             node.append("circle")
                 .attr("r", 8)
-                .attr("fill", d => d.title === (findItemById(appState.activeTabId)?.title) ? "#3b82f6" : "#666");
+                .attr("fill", d => d.id === (getItemPath(findItemById(appState.activeTabId))) ? "#3b82f6" : "#666");
 
             node.append("text")
                 .attr("dx", 12)
@@ -2950,7 +3030,7 @@
             }
 
             node.on("click", (event, d) => {
-                const tab = findTabByTitle(d.title);
+                const tab = findItemByPath(d.id);
                 if (tab) {
                     activateTab(tab.id);
                     graphModal.classList.add('hidden');
@@ -2958,6 +3038,7 @@
                 }
             });
         }
+
 
         graphBtn.onclick = () => {
             graphModal.classList.remove('hidden');
