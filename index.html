@@ -2161,7 +2161,7 @@
             if (!match.isTitle) {
                 setTimeout(() => {
                     editor.focus();
-                    editor.setSelectionRange(match.matchIndex, match.matchIndex + currentSearchQuery.length);
+                    editor.setSelectionRange(match.matchIndex, match.matchIndex); // Move cursor before the match
 
                     const lineHeight = parseInt(getComputedStyle(editor).lineHeight) || 27;
                     const textBefore = editor.value.substring(0, match.matchIndex);
