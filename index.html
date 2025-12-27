@@ -1523,8 +1523,8 @@
         };
 
         function updateShortcutLabels() {
-            const mainMod = IS_MAC ? 'Cmd+Opt' : 'Alt';
-            const searchLabel = IS_MAC ? 'Cmd+Shift+F' : 'Ctrl+Shift+F';
+            const mainMod = IS_MAC ? '⌘⌥' : 'Alt';
+            const searchLabel = IS_MAC ? '⌘⇧F' : 'Ctrl+Shift+F';
 
             // Update Tooltips
             document.getElementById('panicBtn').setAttribute('data-title', `Panic Button (${mainMod}+P)`);
@@ -1536,9 +1536,9 @@
             const kbdElements = infoModal.querySelectorAll('kbd');
             if (kbdElements.length >= 4) {
                 kbdElements[0].innerText = searchLabel;
-                kbdElements[1].innerText = `${mainMod} + Z`;
-                kbdElements[2].innerText = `${mainMod} + T`;
-                kbdElements[3].innerText = `${mainMod} + P`;
+                kbdElements[1].innerText = IS_MAC ? '⌘ + ⌥ + Z' : 'Alt + Z';
+                kbdElements[2].innerText = IS_MAC ? '⌘ + ⌥ + T' : 'Alt + T';
+                kbdElements[3].innerText = IS_MAC ? '⌘ + ⌥ + P' : 'Alt + P';
             }
 
             // Update Panic Exit Message
