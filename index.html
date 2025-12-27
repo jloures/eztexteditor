@@ -20,6 +20,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500&display=swap');
 
@@ -36,6 +37,84 @@
             --text-color: #e0e0e0;
             --meta-color: #666666;
             --border-color: #2d2d2d;
+        }
+
+        /* Wiki Links */
+        .wiki-link {
+            color: var(--accent-color);
+            text-decoration: none;
+            border-bottom: 1px dashed var(--accent-color);
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .wiki-link:hover {
+            opacity: 0.8;
+        }
+
+        #wikiSuggestion {
+            position: absolute;
+            background: #1e1e1e;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            max-height: 200px;
+            overflow-y: auto;
+            width: 250px;
+            display: none;
+        }
+
+        .suggestion-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            color: #ddd;
+            font-size: 0.9rem;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .suggestion-item:hover,
+        .suggestion-item.selected {
+            background: rgba(59, 130, 246, 0.2);
+            color: white;
+        }
+
+        /* Graph View */
+        #graphModal .modal-container {
+            width: 90vw;
+            height: 90vh;
+            max-width: 1200px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #graphContainer {
+            flex: 1;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .node circle {
+            stroke: #fff;
+            stroke-width: 1.5px;
+        }
+
+        .node text {
+            font-size: 10px;
+            fill: #ccc;
+            pointer-events: none;
+            user-select: none;
+        }
+
+        .link {
+            stroke: #555;
+            stroke-opacity: 0.4;
+            stroke-width: 1px;
         }
 
         body {
@@ -669,6 +748,7 @@
             <i id="searchToggle" class="fas fa-search btn-icon" data-title="Global Search (Cmd+K)"></i>
             <i id="newBtn" class="fas fa-plus btn-icon" data-title="Start from Scratch"></i>
             <i id="previewToggle" class="fas fa-eye btn-icon" data-title="Toggle Preview (Markdown)"></i>
+            <i id="graphBtn" class="fas fa-project-diagram btn-icon" data-title="Graph View (Alt+G)"></i>
             <i id="lockBtn" class="fas fa-unlock btn-icon" data-title="Symmetric Password Encryption"></i>
             <i id="shareBtn" class="fas fa-share-nodes btn-icon" data-title="Copy Share Link"></i>
             <i id="infoBtn" class="fas fa-circle-info btn-icon" data-title="Shortcuts & Info"></i>
@@ -708,6 +788,7 @@
         <div id="editor-container">
             <div id="line-highlight" class="line-highlight"></div>
             <textarea id="editor" placeholder="Start typing..." spellcheck="false"></textarea>
+            <div id="wikiSuggestion"></div>
             <div id="preview-wrapper" class="flex-1" style="display: none; height: 100%; overflow-y: auto;">
                 <div id="toc-container">
                     <h4>On this page</h4>
@@ -763,6 +844,18 @@
                 <button id="renameSubmit"
                     class="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-500 transition">Save Name</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Graph View Modal -->
+    <div id="graphModal" class="fixed inset-0 modal-overlay z-50 flex items-center justify-center hidden">
+        <div class="modal-container bg-[#1e1e1e] p-6 rounded-xl border border-gray-800 shadow-2xl relative">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-white">Notebook Graph View</h3>
+                <button id="graphClose" class="text-gray-500 hover:text-white"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="graphContainer"></div>
+            <p class="text-xs text-center text-gray-500 mt-4">Zoom with mouse wheel, drag to pan and move nodes.</p>
         </div>
     </div>
 
@@ -1018,6 +1111,11 @@
         const searchInput = document.getElementById('searchInput');
         const searchResults = document.getElementById('searchResults');
         const searchStatus = document.getElementById('searchStatus');
+        const wikiSuggestion = document.getElementById('wikiSuggestion');
+        const graphBtn = document.getElementById('graphBtn');
+        const graphModal = document.getElementById('graphModal');
+        const graphClose = document.getElementById('graphClose');
+        const graphContainer = document.getElementById('graphContainer');
         const addFolderBtn = document.getElementById('addFolderBtn');
 
         // Privacy & Security
@@ -1357,6 +1455,17 @@
             return null;
         }
 
+        function findTabByTitle(title, items = appState.tabs) {
+            for (const item of items) {
+                if (item.type === 'note' && item.title === title) return item;
+                if (item.type === 'folder' && item.children) {
+                    const found = findTabByTitle(title, item.children);
+                    if (found) return found;
+                }
+            }
+            return null;
+        }
+
         function removeItemById(id, items = appState.tabs) {
             for (let i = 0; i < items.length; i++) {
                 if (items[i].id === id) return items.splice(i, 1)[0];
@@ -1655,10 +1764,14 @@
                 return match;
             });
 
-            // 2. Auto-embed plain image links (links on their own line or surrounded by spaces)
-            // Detects urls ending in image extensions that aren't already part of a Markdown link/image
+            // 3. Auto-embed plain image links
             const imgRegex = /(?<![!\[\(])(https?:\/\/\S+\.(?:png|jpg|jpeg|gif|webp|svg|avif))(?![\]\)])/gi;
             rawContent = rawContent.replace(imgRegex, (match) => `![](${match})`);
+
+            // 4. Wiki-links: [[Tab Name]]
+            rawContent = rawContent.replace(/\[\[([^\]]+)\]\]/g, (match, tabName) => {
+                return `<span class="wiki-link" data-tab-name="${tabName.trim()}">${tabName}</span>`;
+            });
 
             const previewEl = document.getElementById('preview');
             const tocList = document.getElementById('toc-list');
@@ -1666,6 +1779,29 @@
 
             // Render Markdown
             previewEl.innerHTML = marked.parse(rawContent);
+
+            // Add Click Listeners for Wiki-Links
+            previewEl.querySelectorAll('.wiki-link').forEach(link => {
+                link.onclick = () => {
+                    const targetName = link.getAttribute('data-tab-name');
+                    const targetTab = findTabByTitle(targetName);
+                    if (targetTab) {
+                        activateTab(targetTab.id);
+                        if (isPreviewMode) togglePreview(); // Back to edit mode to see it? Or keep in preview? 
+                        // Usually people want to see the content. If the new tab has content, stay in preview?
+                        // Let's just follow the switch and let the user decide.
+                        if (isPreviewMode) renderMarkdownPreview();
+                    } else {
+                        // Extension: Create new tab if it doesn't exist?
+                        showConfirm("Tab Not Found", `Create a new note named "${targetName}"?`, () => {
+                            const newId = createTab(targetName);
+                            activateTab(newId);
+                            renderTabs();
+                            performSave();
+                        });
+                    }
+                };
+            });
 
             // 1. Math Rendering (KaTeX)
             if (window.renderMathInElement) {
@@ -1926,6 +2062,13 @@
             }
 
 
+            // Graph View: Alt+G
+            if (e.altKey && primaryKey === 'g') {
+                e.preventDefault();
+                graphBtn.click();
+                return;
+            }
+
             // Mode toggles: Cmd+Char on Mac (non-colliding), Alt+Char on others
             if (IS_MAC) {
                 // Mac Simple Shortcuts
@@ -2021,6 +2164,239 @@
             }
         }
 
+        // --- Wiki Suggestion Logic ---
+        let selectedSuggestionIndex = 0;
+
+        function updateWikiSuggestions() {
+            const cursor = editor.selectionStart;
+            const text = editor.value.substring(0, cursor);
+            const match = text.match(/\[\[([^\]]*)$/);
+
+            if (match) {
+                const query = match[1].toLowerCase();
+                const allNotes = [];
+                function gatherNotes(items) {
+                    items.forEach(i => {
+                        if (i.type === 'note') allNotes.push(i);
+                        else if (i.children) gatherNotes(i.children);
+                    });
+                }
+                gatherNotes(appState.tabs);
+
+                const filtered = allNotes.filter(n => n.title.toLowerCase().includes(query));
+
+                if (filtered.length > 0) {
+                    wikiSuggestion.innerHTML = '';
+                    selectedSuggestionIndex = 0;
+
+                    filtered.forEach((note, index) => {
+                        const item = document.createElement('div');
+                        item.className = `suggestion-item ${index === 0 ? 'selected' : ''}`;
+                        item.innerHTML = `<i class="fas fa-file-alt"></i> ${note.title}`;
+                        item.onclick = () => insertWikiLink(note.title);
+                        wikiSuggestion.appendChild(item);
+                    });
+
+                    // Position near caret
+                    const { top, left } = getCaretCoordinates(editor, cursor);
+                    wikiSuggestion.style.display = 'block';
+                    wikiSuggestion.style.top = `${top + 30}px`;
+                    wikiSuggestion.style.left = `${left}px`;
+                } else {
+                    wikiSuggestion.style.display = 'none';
+                }
+            } else {
+                wikiSuggestion.style.display = 'none';
+            }
+        }
+
+        function insertWikiLink(title) {
+            const cursor = editor.selectionStart;
+            const text = editor.value;
+            const before = text.substring(0, cursor).replace(/\[\[[^\[]*$/, '');
+            const after = text.substring(cursor);
+            editor.value = before + '[[' + title + ']]' + after;
+            wikiSuggestion.style.display = 'none';
+            editor.focus();
+            updateCurrentTabState();
+            performSave();
+        }
+
+        function getCaretCoordinates(element, position) {
+            const div = document.createElement('div');
+            const style = getComputedStyle(element);
+            for (const prop of style) {
+                if (prop !== 'height') div.style[prop] = style[prop];
+            }
+            div.style.position = 'absolute';
+            div.style.visibility = 'hidden';
+            div.style.whiteSpace = 'pre-wrap';
+            div.style.width = element.clientWidth + 'px';
+            div.style.height = 'auto';
+            div.textContent = element.value.substring(0, position);
+            const span = document.createElement('span');
+            span.textContent = element.value.substring(position) || '.';
+            div.appendChild(span);
+            document.body.appendChild(div);
+            const { offsetTop: top, offsetLeft: left } = span;
+            document.body.removeChild(div);
+            return { top, left };
+        }
+
+        editor.addEventListener('input', () => {
+            updateCurrentTabState();
+            performSave();
+            updateTypewriterAndHighlight();
+            updateWikiSuggestions();
+        });
+
+        editor.addEventListener('keydown', (e) => {
+            if (wikiSuggestion.style.display === 'block') {
+                const items = wikiSuggestion.querySelectorAll('.suggestion-item');
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    items[selectedSuggestionIndex]?.classList.remove('selected');
+                    selectedSuggestionIndex = (selectedSuggestionIndex + 1) % items.length;
+                    items[selectedSuggestionIndex]?.classList.add('selected');
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    items[selectedSuggestionIndex]?.classList.remove('selected');
+                    selectedSuggestionIndex = (selectedSuggestionIndex - 1 + items.length) % items.length;
+                    items[selectedSuggestionIndex]?.classList.add('selected');
+                } else if (e.key === 'Enter' || e.key === 'Tab') {
+                    // Only intercept if we have suggestions
+                    if (items.length > 0) {
+                        e.preventDefault();
+                        const selected = items[selectedSuggestionIndex];
+                        if (selected) {
+                            const title = selected.textContent.trim();
+                            insertWikiLink(title);
+                        }
+                    }
+                } else if (e.key === 'Escape') {
+                    wikiSuggestion.style.display = 'none';
+                }
+            }
+        });
+
+        // --- Graph View Logic ---
+        function renderGraphView() {
+            graphContainer.innerHTML = '';
+            const width = graphContainer.clientWidth;
+            const height = graphContainer.clientHeight;
+
+            const nodes = [];
+            const links = [];
+
+            function gatherGraphData(items) {
+                items.forEach(item => {
+                    if (item.type === 'note') {
+                        nodes.push({ id: item.title, title: item.title });
+                        const linkMatches = item.content.matchAll(/\[\[([^\]]+)\]\]/g);
+                        for (const match of linkMatches) {
+                            const target = match[1].trim();
+                            // Only link if target exists as a node
+                            links.push({ source: item.title, target: target });
+                        }
+                    } else if (item.children) {
+                        gatherGraphData(item.children);
+                    }
+                });
+            }
+            gatherGraphData(appState.tabs);
+
+            const svg = d3.select("#graphContainer")
+                .append("svg")
+                .attr("width", "100%")
+                .attr("height", "100%")
+                .attr("viewBox", [0, 0, width, height]);
+
+            const g = svg.append("g");
+
+            svg.call(d3.zoom().on("zoom", (event) => {
+                g.attr("transform", event.transform);
+            }));
+
+            const simulation = d3.forceSimulation(nodes)
+                .force("link", d3.forceLink(links).id(d => d.id).distance(100))
+                .force("charge", d3.forceManyBody().strength(-300))
+                .force("center", d3.forceCenter(width / 2, height / 2));
+
+            const link = g.append("g")
+                .attr("stroke", "#555")
+                .attr("stroke-opacity", 0.6)
+                .selectAll("line")
+                .data(links)
+                .join("line");
+
+            const node = g.append("g")
+                .selectAll("g")
+                .data(nodes)
+                .join("g")
+                .attr("class", "node")
+                .call(d3.drag()
+                    .on("start", dragstarted)
+                    .on("drag", dragged)
+                    .on("end", dragended));
+
+            node.append("circle")
+                .attr("r", 8)
+                .attr("fill", d => d.title === (findItemById(appState.activeTabId)?.title) ? "#3b82f6" : "#666");
+
+            node.append("text")
+                .attr("dx", 12)
+                .attr("dy", ".35em")
+                .text(d => d.title);
+
+            simulation.on("tick", () => {
+                link
+                    .attr("x1", d => d.source.x)
+                    .attr("y1", d => d.source.y)
+                    .attr("x2", d => d.target.x)
+                    .attr("y2", d => d.target.y);
+
+                node
+                    .attr("transform", d => `translate(${d.x},${d.y})`);
+            });
+
+            function dragstarted(event) {
+                if (!event.active) simulation.alphaTarget(0.3).restart();
+                event.subject.fx = event.subject.x;
+                event.subject.fy = event.subject.y;
+            }
+
+            function dragged(event) {
+                event.subject.fx = event.x;
+                event.subject.fy = event.y;
+            }
+
+            function dragended(event) {
+                if (!event.active) simulation.alphaTarget(0);
+                event.subject.fx = null;
+                event.subject.fy = null;
+            }
+
+            node.on("click", (event, d) => {
+                const tab = findTabByTitle(d.title);
+                if (tab) {
+                    activateTab(tab.id);
+                    graphModal.classList.add('hidden');
+                    isModalOpen = false;
+                }
+            });
+        }
+
+        graphBtn.onclick = () => {
+            graphModal.classList.remove('hidden');
+            isModalOpen = true;
+            renderGraphView();
+        };
+
+        graphClose.onclick = () => {
+            graphModal.classList.add('hidden');
+            isModalOpen = false;
+        };
+
         editor.addEventListener('input', () => {
             updateCurrentTabState();
             performSave();
@@ -2029,7 +2405,9 @@
         editor.addEventListener('keyup', updateTypewriterAndHighlight);
         editor.addEventListener('click', updateTypewriterAndHighlight);
         editor.addEventListener('scroll', () => {
-            lineHighlight.style.transform = `translateY(-${editor.scrollTop}px)`;
+            if (lineHighlight) {
+                lineHighlight.style.transform = `translateY(-${editor.scrollTop}px)`;
+            }
         });
 
         // Inactivity Timer
