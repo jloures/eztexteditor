@@ -409,15 +409,17 @@
         }
 
         .line-numbers-gutter {
-            width: 50px;
+            width: 60px;
             padding: 40px 10px 40px 0;
             border-right: 1px solid var(--border-color);
             background: rgba(128, 128, 128, 0.03);
             color: var(--meta-color);
             text-align: right;
             font-family: 'JetBrains Mono', monospace;
-            font-size: 0.9rem;
+            font-size: 1.1rem;
+            /* Matched exactly to editor */
             line-height: 1.6;
+            /* Matched exactly to editor */
             user-select: none;
             overflow: hidden;
             display: none;
@@ -432,8 +434,11 @@
             height: 100%;
             padding: 40px;
             overflow-y: auto;
-            overflow-wrap: break-word;
-            word-wrap: break-word;
+            overflow-x: auto;
+            white-space: pre;
+            /* Essential for line number alignment */
+            word-wrap: normal;
+            overflow-wrap: normal;
         }
 
         #editor {
@@ -1033,7 +1038,7 @@
                             <div class="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
                                 <span class="text-gray-400">Line Numbers</span>
                                 <kbd id="kbd-lines"
-                                    class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs font-mono">⌥L</kbd>
+                                    class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs font-mono">⌘L</kbd>
                             </div>
                             <div class="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
                                 <span class="text-gray-400">Start Scratch</span>
@@ -1817,7 +1822,7 @@
             const copyMod = IS_MAC ? '⌘⌥C' : 'Ctrl+Alt+C';
             const saveMod = IS_MAC ? '⌘S' : 'Ctrl+S';
             const graphMod = IS_MAC ? '⌥G' : 'Alt+G';
-            const linesMod = IS_MAC ? '⌥L' : 'Alt+L';
+            const linesMod = IS_MAC ? '⌘L' : 'Ctrl+L';
 
             // Update Tooltips
             document.getElementById('panicBtn').setAttribute('data-title', `Panic Button (${panicMod})`);
@@ -2103,9 +2108,11 @@
                         let content = item.content;
                         let pos = content.toLowerCase().indexOf(qLower);
                         while (pos !== -1) {
+                            const lineNum = content.substring(0, pos).split('\n').length;
                             searchFilteredMatches.push({
                                 tab: item,
                                 matchIndex: pos,
+                                lineNum: lineNum,
                                 isTitle: false
                             });
                             pos = content.toLowerCase().indexOf(qLower, pos + 1);
@@ -2129,7 +2136,7 @@
                 title.innerHTML = `<i class="fas fa-file-alt text-xs opacity-50"></i> ${match.isTitle ? highlightMatch(match.tab.title, query) : match.tab.title}`;
 
                 const snippet = document.createElement('div');
-                snippet.className = 'text-sm text-gray-500 truncate font-mono mt-1';
+                snippet.className = 'text-sm text-gray-500 truncate font-mono mt-1 flex items-center justify-between';
 
                 if (match.isTitle) {
                     snippet.innerHTML = '<span class="text-blue-400/50">Match in title</span>';
@@ -2140,7 +2147,7 @@
                     let prefix = start > 0 ? '...' : '';
                     let suffix = end < content.length ? '...' : '';
                     let text = content.substring(start, end);
-                    snippet.innerHTML = prefix + highlightMatch(text, query) + suffix;
+                    snippet.innerHTML = `<span>${prefix}${highlightMatch(text, query)}${suffix}</span> <span class="text-xs opacity-30 ml-4">Line ${match.lineNum}</span>`;
                 }
 
                 div.append(title, snippet);
@@ -2195,6 +2202,7 @@
                 items[selectedSearchIndex]?.classList.add('selected');
                 items[selectedSearchIndex]?.scrollIntoView({ block: 'nearest' });
             } else if (e.key === 'Enter') {
+                e.preventDefault();
                 selectSearchResult(selectedSearchIndex);
             } else if (e.key === 'Escape') {
                 closeSearch();
@@ -2270,7 +2278,8 @@
             }
 
 
-            if (e.altKey && primaryKey === 'l') {
+            // Line Numbers: Cmd+L
+            if (isMod && primaryKey === 'l') {
                 e.preventDefault();
                 toggleLineNumbers();
                 return;
