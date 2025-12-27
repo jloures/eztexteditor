@@ -592,6 +592,21 @@
             padding-bottom: 50vh !important;
         }
 
+        .line-highlight {
+            position: absolute;
+            left: 0;
+            right: 0;
+            background: rgba(59, 130, 246, 0.05);
+            pointer-events: none;
+            z-index: 0;
+            transition: top 0.1s ease;
+            display: none;
+        }
+
+        .typewriter-active .line-highlight {
+            display: block;
+        }
+
         /* --- Global Search Modal --- */
         #searchModal .search-item {
             padding: 12px;
@@ -960,6 +975,7 @@
         // --- Elements ---
         const editor = document.getElementById('editor');
         const preview = document.getElementById('preview');
+        const lineHighlight = document.getElementById('line-highlight');
         const tabBar = document.getElementById('tabBar');
         const addTabBtn = document.getElementById('addTabBtn');
         const sidebar = document.getElementById('sidebar');
@@ -1912,15 +1928,14 @@
 
             // Update Line Highlight Position
             const highlightTop = paddingTop + ((currentLineNum - 1) * lineHeight);
-            lineHighlight.style.top = `${highlightTop}px`;
-            lineHighlight.style.height = `${lineHeight}px`;
+            if (lineHighlight) {
+                lineHighlight.style.top = `${highlightTop}px`;
+                lineHighlight.style.height = `${lineHeight}px`;
+            }
 
             if (isTypewriter) {
-                const scrollPos = (currentLineNum * lineHeight) + paddingTop - (editor.clientHeight / 2);
-                editor.scrollTo({
-                    top: scrollPos,
-                    behavior: 'smooth'
-                });
+                const scrollPos = highlightTop - (editor.clientHeight / 2) + (lineHeight / 2);
+                editor.scrollTop = scrollPos;
             }
         }
 
