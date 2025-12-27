@@ -2400,6 +2400,7 @@
             // COMPLETELY EXIT if mode is off and not forced (prevents shifting)
             if (!isTypewriter && forceCenter !== true) {
                 if (lineHighlight) lineHighlight.style.display = 'none';
+                document.body.classList.remove('typewriter-active');
                 return;
             }
 
@@ -2418,11 +2419,9 @@
                 lineHighlight.style.height = `${lineHeight}px`;
                 lineHighlight.style.display = 'block';
 
-                // Show highlight manually if forced (e.g. from search)
+                // Temporarily apply visuals for the jump, but don't change global isTypewriter state
                 if (forceCenter === true) {
                     document.body.classList.add('typewriter-active');
-                    typewriterToggle.classList.add('btn-active');
-                    isTypewriter = true;
                 }
 
                 // Sync the transform immediately
