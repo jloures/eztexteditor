@@ -508,6 +508,33 @@
             background: rgba(59, 130, 246, 0.1);
             border-color: var(--accent-color);
         }
+
+        /* --- Panic Mode --- */
+        #panicOverlay {
+            background: #f0f2f5;
+            color: #1c1e21;
+            z-index: 10000;
+            display: none;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        .panic-header {
+            background: #ffffff;
+            border-bottom: 1px solid #dddfe2;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .panic-content {
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, .1);
+        }
     </style>
 </head>
 
@@ -521,6 +548,8 @@
         </div>
 
         <div class="flex items-center gap-6">
+            <i id="panicBtn" class="fas fa-ghost btn-icon text-orange-400" data-title="Panic Button (Alt+P)"></i>
+            <i id="securityBtn" class="fas fa-shield-halved btn-icon" data-title="Security Settings"></i>
             <i id="zenToggle" class="fas fa-expand btn-icon" data-title="Zen Mode (Alt+Z)"></i>
             <i id="typewriterToggle" class="fas fa-arrows-up-down btn-icon" data-title="Typewriter Scrolling"></i>
             <i id="searchToggle" class="fas fa-search btn-icon" data-title="Global Search (Cmd+K)"></i>
@@ -651,6 +680,71 @@
         </div>
     </div>
 
+    <!-- Security Settings Modal -->
+    <div id="securityModal" class="fixed inset-0 modal-overlay z-50 flex items-center justify-center hidden">
+        <div class="bg-[#1e1e1e] p-8 rounded-xl w-full max-w-md border border-gray-800 shadow-2xl">
+            <h3 class="text-xl font-bold mb-4 text-white">Security Settings</h3>
+
+            <div class="space-y-6">
+                <div>
+                    <label class="block text-sm text-gray-400 mb-2">Auto-Lock Inactivity (minutes)</label>
+                    <input type="number" id="autoLockInput" min="0"
+                        class="w-full bg-black border border-gray-700 rounded p-3 text-white outline-none focus:border-blue-500"
+                        placeholder="0 to disable">
+                </div>
+
+                <div>
+                    <label class="block text-sm text-gray-400 mb-2">Self-Destruct (Expiry GMT)</label>
+                    <input type="datetime-local" id="expiryInput"
+                        class="w-full bg-black border border-gray-700 rounded p-3 text-white outline-none focus:border-blue-500">
+                    <p class="text-xs text-gray-500 mt-2">Note will trigger deletion after this time.</p>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-3 mt-8">
+                <button id="securityCancel" class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+                <button id="securitySave"
+                    class="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-500 transition">Apply
+                    Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Panic Overlay (Fake Page) -->
+    <div id="panicOverlay" class="fixed inset-0">
+        <div class="panic-header">
+            <div class="flex items-center gap-4">
+                <div class="w-8 h-8 bg-blue-600 rounded-sm"></div>
+                <div class="font-bold text-gray-700">Enterprise Resource Planning</div>
+            </div>
+            <div class="flex gap-4 text-xs text-gray-500">
+                <span>Dashboard</span>
+                <span>Reports</span>
+                <span>Settings</span>
+                <span class="text-blue-600">Logout</span>
+            </div>
+        </div>
+        <div class="panic-content">
+            <h2 class="text-2xl font-bold mb-6">Weekly Performance Overview</h2>
+            <div class="space-y-4">
+                <div class="h-4 bg-gray-200 rounded w-3/4"></div>
+                <div class="h-4 bg-gray-200 rounded w-full"></div>
+                <div class="h-4 bg-gray-200 rounded w-5/6"></div>
+                <div class="mt-8 grid grid-cols-3 gap-4">
+                    <div class="h-24 bg-gray-100 rounded"></div>
+                    <div class="h-24 bg-gray-100 rounded"></div>
+                    <div class="h-24 bg-gray-100 rounded"></div>
+                </div>
+                <div class="mt-8">
+                    <div class="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
+                    <div class="h-4 bg-gray-100 rounded w-full"></div>
+                    <div class="h-4 bg-gray-100 rounded w-full"></div>
+                </div>
+            </div>
+            <p class="mt-8 text-xs text-gray-400 text-center">Press Alt + P to exit workspace</p>
+        </div>
+    </div>
+
     <div id="saveIndicator" class="fixed bottom-6 right-10 meta-bar opacity-0 transition-opacity duration-500">
         URL UPDATED
     </div>
@@ -662,7 +756,9 @@
         // --- State Management ---
         let appState = {
             tabs: [],
-            activeTabId: null
+            activeTabId: null,
+            autoLockMinutes: 0,
+            expiryDate: null
         };
 
         let encryptionKey = null;
@@ -671,6 +767,8 @@
         let saveTimeout;
         let isResizing = false;
         let sidebarWidth = 260;
+        let lastActivity = Date.now();
+        let isPanicMode = false;
 
         // --- Elements ---
         const editor = document.getElementById('editor');
@@ -717,6 +815,16 @@
         const searchInput = document.getElementById('searchInput');
         const searchResults = document.getElementById('searchResults');
         const searchStatus = document.getElementById('searchStatus');
+
+        // Privacy & Security
+        const securityBtn = document.getElementById('securityBtn');
+        const panicBtn = document.getElementById('panicBtn');
+        const securityModal = document.getElementById('securityModal');
+        const autoLockInput = document.getElementById('autoLockInput');
+        const expiryInput = document.getElementById('expiryInput');
+        const securitySave = document.getElementById('securitySave');
+        const securityCancel = document.getElementById('securityCancel');
+        const panicOverlay = document.getElementById('panicOverlay');
 
         // Rename Modal Elements
         const renameModal = document.getElementById('renameModal');
@@ -966,10 +1074,6 @@
             }
         }
 
-        editor.addEventListener('input', () => {
-            updateCurrentTabState();
-            performSave();
-        });
 
         // --- Crypto Logic (Unchanged Helpers) ---
         async function deriveKey(password, salt) {
@@ -1140,6 +1244,8 @@
                 themeToggle.classList.replace('fa-sun', 'fa-moon');
             }
             if (!isModalOpen) editor.focus();
+
+            checkExpiry();
         };
 
         // --- Other UI Logic ---
@@ -1240,21 +1346,6 @@
         }
         typewriterToggle.addEventListener('click', toggleTypewriter);
 
-        editor.addEventListener('input', () => {
-            if (isTypewriter) {
-                const caretPos = editor.selectionStart;
-                const textBeforeCaret = editor.value.substring(0, caretPos);
-                const linesBeforeCaret = textBeforeCaret.split('\n').length;
-
-                const lineHeight = parseInt(getComputedStyle(editor).lineHeight);
-                const scrollPos = (linesBeforeCaret * lineHeight) - (editor.clientHeight / 2);
-
-                editor.scrollTo({
-                    top: scrollPos,
-                    behavior: 'smooth'
-                });
-            }
-        });
 
         // 3. Global Search
         let selectedSearchIndex = 0;
@@ -1345,7 +1436,114 @@
                 e.preventDefault();
                 toggleZen();
             }
+            // Alt+T for Typewriter
+            if (e.altKey && e.key === 't') {
+                e.preventDefault();
+                toggleTypewriter();
+            }
+            // Alt+P for Panic
+            if (e.altKey && e.key === 'p') {
+                e.preventDefault();
+                togglePanic();
+            }
         });
+
+        // --- Privacy & Security Logic ---
+
+        function togglePanic() {
+            isPanicMode = !isPanicMode;
+            panicOverlay.style.display = isPanicMode ? 'block' : 'none';
+        }
+        panicBtn.addEventListener('click', togglePanic);
+
+        securityBtn.addEventListener('click', () => {
+            isModalOpen = true;
+            autoLockInput.value = appState.autoLockMinutes || 0;
+            expiryInput.value = appState.expiryDate || "";
+            securityModal.classList.remove('hidden');
+        });
+
+        securitySave.addEventListener('click', () => {
+            appState.autoLockMinutes = parseInt(autoLockInput.value) || 0;
+            appState.expiryDate = expiryInput.value || null;
+            securityModal.classList.add('hidden');
+            isModalOpen = false;
+            performSave();
+        });
+
+        securityCancel.addEventListener('click', () => {
+            securityModal.classList.add('hidden');
+            isModalOpen = false;
+        });
+
+        function updateTypewriterAndHighlight() {
+            const caretPos = editor.selectionStart;
+            const textBeforeCaret = editor.value.substring(0, caretPos);
+            const lines = textBeforeCaret.split('\n');
+            const currentLineNum = lines.length;
+
+            const lineHeight = parseInt(getComputedStyle(editor).lineHeight) || 27;
+            const paddingTop = parseInt(getComputedStyle(editor).paddingTop) || 40;
+
+            // Update Line Highlight Position
+            const highlightTop = paddingTop + ((currentLineNum - 1) * lineHeight);
+            lineHighlight.style.top = `${highlightTop}px`;
+            lineHighlight.style.height = `${lineHeight}px`;
+
+            if (isTypewriter) {
+                const scrollPos = (currentLineNum * lineHeight) + paddingTop - (editor.clientHeight / 2);
+                editor.scrollTo({
+                    top: scrollPos,
+                    behavior: 'smooth'
+                });
+            }
+        }
+
+        editor.addEventListener('input', () => {
+            updateCurrentTabState();
+            performSave();
+            updateTypewriterAndHighlight();
+        });
+        editor.addEventListener('keyup', updateTypewriterAndHighlight);
+        editor.addEventListener('click', updateTypewriterAndHighlight);
+        editor.addEventListener('scroll', () => {
+            lineHighlight.style.transform = `translateY(-${editor.scrollTop}px)`;
+        });
+
+        // Inactivity Timer
+        function resetActivity() {
+            lastActivity = Date.now();
+        }
+        window.addEventListener('mousemove', resetActivity);
+        window.addEventListener('keydown', resetActivity);
+        window.addEventListener('mousedown', resetActivity);
+
+        setInterval(() => {
+            if (appState.autoLockMinutes > 0 && !isModalOpen) {
+                const elapsed = (Date.now() - lastActivity) / 1000 / 60;
+                if (elapsed >= appState.autoLockMinutes) {
+                    // Lock app
+                    location.reload(); // Simplest way to "lock" - reload loses unencrypted state
+                }
+            }
+        }, 10000); // Check every 10 seconds
+
+        function checkExpiry() {
+            if (appState.expiryDate) {
+                const expiry = new Date(appState.expiryDate).getTime();
+                if (Date.now() > expiry) {
+                    document.body.innerHTML = `
+                        <div class="flex items-center justify-center h-screen bg-black text-white p-10 text-center">
+                            <div>
+                                <h1 class="text-4xl font-bold mb-4">Note Expired</h1>
+                                <p class="text-gray-400">This secure notebook has self-destructed based on its preset expiry date.</p>
+                                <button onclick="location.hash=''; location.reload();" class="mt-8 px-6 py-2 bg-blue-600 rounded">Start New Notebook</button>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+        }
 
         function updateCounts() {
             const text = editor.value.trim();
