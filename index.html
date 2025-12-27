@@ -437,6 +437,7 @@
             overflow: hidden;
             display: none;
             flex-shrink: 0;
+            white-space: pre;
         }
 
         #editor,
@@ -2026,15 +2027,26 @@
         const lineNumbers = document.getElementById('line-numbers');
         let showLineNumbers = false;
 
+        let lastTotalLineCount = 0;
         function updateLineNumbers() {
             if (!showLineNumbers) return;
-            const lines = editor.value.split('\n');
-            const lineCount = lines.length;
-            let numbers = '';
-            for (let i = 1; i <= lineCount; i++) {
-                numbers += i + '<br>';
+            const val = editor.value;
+            let count = 1;
+            for (let i = 0; i < val.length; i++) {
+                if (val[i] === '\n') count++;
             }
-            lineNumbers.innerHTML = numbers;
+
+            if (count === lastTotalLineCount) {
+                syncGutterScroll();
+                return;
+            }
+            lastTotalLineCount = count;
+
+            let numbers = '';
+            for (let i = 1; i <= count; i++) {
+                numbers += i + '\n';
+            }
+            lineNumbers.textContent = numbers;
             syncGutterScroll();
         }
 
@@ -2601,7 +2613,6 @@
         infoCloseBtn.addEventListener('click', closeInfo);
 
         function updateTypewriterAndHighlight(forceCenter = false) {
-            // COMPLETELY EXIT if mode is off and not forced (prevents shifting)
             if (!isTypewriter && forceCenter !== true) {
                 if (lineHighlight) lineHighlight.style.display = 'none';
                 document.body.classList.remove('typewriter-active');
@@ -2609,32 +2620,33 @@
             }
 
             const caretPos = editor.selectionStart;
-            const textBeforeCaret = editor.value.substring(0, caretPos);
-            const lines = textBeforeCaret.split('\n');
-            const currentLineNum = lines.length;
+            const val = editor.value;
 
-            const lineHeight = 30; // Matches fixed CSS
-            const paddingTop = 40; // Matches fixed CSS
+            let currentLineNum = 1;
+            for (let i = 0; i < caretPos; i++) {
+                if (val[i] === '\n') currentLineNum++;
+            }
 
-            // Update Line Highlight Position
-            const highlightTop = paddingTop + ((currentLineNum - 1) * lineHeight);
+            const lineHeight = 30;
+            const paddingTop = 40;
+
             if (lineHighlight) {
-                lineHighlight.style.top = `${highlightTop}px`;
+                lineHighlight.style.top = `${paddingTop + ((currentLineNum - 1) * lineHeight)}px`;
                 lineHighlight.style.height = `${lineHeight}px`;
                 lineHighlight.style.display = 'block';
+                lineHighlight.style.transform = `translateY(-${editor.scrollTop}px)`;
 
-                // Temporarily apply visuals for the jump, but don't change global isTypewriter state
                 if (forceCenter === true) {
                     document.body.classList.add('typewriter-active');
                 }
-
-                // Sync the transform immediately
-                lineHighlight.style.transform = `translateY(-${editor.scrollTop}px)`;
             }
 
             if (isTypewriter || forceCenter === true) {
-                const scrollPos = highlightTop - (editor.clientHeight / 2) + (lineHeight / 2);
-                editor.scrollTop = scrollPos;
+                const targetScroll = (currentLineNum - 1) * lineHeight + paddingTop - (editor.clientHeight / 2) + (lineHeight / 2);
+
+                if (Math.abs(editor.scrollTop - targetScroll) > 1 || forceCenter) {
+                    editor.scrollTop = targetScroll;
+                }
                 syncGutterScroll();
             }
         }
@@ -2642,44 +2654,47 @@
         // --- Wiki Suggestion Logic ---
         let selectedSuggestionIndex = 0;
 
+        let wikiDebounce;
         function updateWikiSuggestions() {
             const cursor = editor.selectionStart;
             const text = editor.value.substring(0, cursor);
             const match = text.match(/\[\[([^\]]*)$/);
 
             if (match) {
-                const query = match[1].toLowerCase();
-                const allNotes = [];
-                function gatherNotes(items) {
-                    items.forEach(i => {
-                        if (i.type === 'note') allNotes.push(i);
-                        else if (i.children) gatherNotes(i.children);
-                    });
-                }
-                gatherNotes(appState.tabs);
+                clearTimeout(wikiDebounce);
+                wikiDebounce = setTimeout(() => {
+                    const query = match[1].toLowerCase();
+                    const allNotes = [];
+                    function gatherNotes(items) {
+                        items.forEach(i => {
+                            if (i.type === 'note') allNotes.push(i);
+                            else if (i.children) gatherNotes(i.children);
+                        });
+                    }
+                    gatherNotes(appState.tabs);
 
-                const filtered = allNotes.filter(n => n.title.toLowerCase().includes(query));
+                    const filtered = allNotes.filter(n => n.title.toLowerCase().includes(query));
 
-                if (filtered.length > 0) {
-                    wikiSuggestion.innerHTML = '';
-                    selectedSuggestionIndex = 0;
+                    if (filtered.length > 0) {
+                        wikiSuggestion.innerHTML = '';
+                        selectedSuggestionIndex = 0;
 
-                    filtered.forEach((note, index) => {
-                        const item = document.createElement('div');
-                        item.className = `suggestion-item ${index === 0 ? 'selected' : ''}`;
-                        item.innerHTML = `<i class="fas fa-file-alt"></i> ${note.title}`;
-                        item.onclick = () => insertWikiLink(note.title);
-                        wikiSuggestion.appendChild(item);
-                    });
+                        filtered.forEach((note, index) => {
+                            const item = document.createElement('div');
+                            item.className = `suggestion-item ${index === 0 ? 'selected' : ''}`;
+                            item.innerHTML = `<i class="fas fa-file-alt"></i> ${note.title}`;
+                            item.onclick = () => insertWikiLink(note.title);
+                            wikiSuggestion.appendChild(item);
+                        });
 
-                    // Position near caret
-                    const { top, left } = getCaretCoordinates(editor, cursor);
-                    wikiSuggestion.style.display = 'block';
-                    wikiSuggestion.style.top = `${top + 30}px`;
-                    wikiSuggestion.style.left = `${left}px`;
-                } else {
-                    wikiSuggestion.style.display = 'none';
-                }
+                        const { top, left } = getCaretCoordinates(editor, cursor);
+                        wikiSuggestion.style.display = 'block';
+                        wikiSuggestion.style.top = `${top + 30}px`;
+                        wikiSuggestion.style.left = `${left}px`;
+                    } else {
+                        wikiSuggestion.style.display = 'none';
+                    }
+                }, 50);
             } else {
                 wikiSuggestion.style.display = 'none';
             }
@@ -2718,13 +2733,29 @@
             return { top, left };
         }
 
-        editor.addEventListener('input', () => {
+        let heavyUpdateTimeout;
+        function handleEditorInput() {
             updateCurrentTabState();
-            performSave();
+
+            // Immediate UI feedback
             updateTypewriterAndHighlight();
-            updateWikiSuggestions();
-            updateLineNumbers();
+
+            // Debounce heavy operations
+            clearTimeout(heavyUpdateTimeout);
+            heavyUpdateTimeout = setTimeout(() => {
+                updateLineNumbers();
+                updateCounts();
+                updateWikiSuggestions();
+                performSave();
+            }, 100);
+        }
+
+        editor.addEventListener('input', handleEditorInput);
+        editor.addEventListener('keyup', (e) => {
+            // Only update highlight on arrows if typing mode
+            if (e.key.startsWith('Arrow')) updateTypewriterAndHighlight();
         });
+        editor.addEventListener('click', () => updateTypewriterAndHighlight());
 
         editor.addEventListener('keydown', (e) => {
             if (wikiSuggestion.style.display === 'block') {
@@ -2873,13 +2904,6 @@
             isModalOpen = false;
         };
 
-        editor.addEventListener('input', () => {
-            updateCurrentTabState();
-            performSave();
-            updateTypewriterAndHighlight();
-        });
-        editor.addEventListener('keyup', updateTypewriterAndHighlight);
-        editor.addEventListener('click', updateTypewriterAndHighlight);
         editor.addEventListener('scroll', () => {
             if (lineHighlight) {
                 lineHighlight.style.transform = `translateY(-${editor.scrollTop}px)`;
@@ -2922,9 +2946,8 @@
         }
 
         function updateCounts() {
-            const text = editor.value.trim();
-            const words = text ? text.split(/\s+/).length : 0;
-            // Maybe show total tabs too?
+            const text = editor.value;
+            const words = text.match(/\S+/g)?.length || 0;
             wordCountDisplay.innerText = `${words} WORDS`;
         }
 
