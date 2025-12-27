@@ -251,6 +251,65 @@
             background: rgba(128, 128, 128, 0.1);
         }
 
+        /* --- Nested Folders --- */
+        .tab-indent {
+            width: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .folder-toggle {
+            cursor: pointer;
+            transition: transform 0.2s;
+            font-size: 0.7em;
+            opacity: 0.5;
+        }
+
+        .folder-toggle:hover {
+            opacity: 1;
+        }
+
+        .folder-toggle.collapsed {
+            transform: rotate(-90deg);
+        }
+
+        .tab.folder {
+            color: var(--text-color);
+            font-weight: 500;
+        }
+
+        /* Drag and Drop */
+        .tab.dragging {
+            opacity: 0.4;
+            border: 1px dashed var(--accent-color);
+        }
+
+        .tab.drag-over {
+            background: rgba(59, 130, 246, 0.1);
+            border-top: 2px solid var(--accent-color) !important;
+        }
+
+        .tab.drag-over-folder {
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px dashed var(--accent-color) !important;
+        }
+
+        .sidebar.collapsed .sidebar-footer {
+            padding: 16px 8px;
+        }
+
+        .sidebar.collapsed .new-tab-btn {
+            padding: 10px 0;
+            justify-content: center;
+        }
+
+        .sidebar.collapsed .tab-indent,
+        .sidebar.collapsed .folder-toggle {
+            display: none;
+        }
+
         .sidebar.collapsed .new-tab-btn {
             justify-content: center;
             padding: 10px 0;
@@ -577,9 +636,14 @@
             </div>
 
             <div class="sidebar-footer">
-                <button id="addTabBtn" class="new-tab-btn" title="New Note">
-                    <i class="fas fa-plus"></i> <span class="btn-text">New Note</span>
-                </button>
+                <div class="flex flex-col gap-2">
+                    <button id="addTabBtn" class="new-tab-btn" title="New Note">
+                        <i class="fas fa-plus"></i> <span class="btn-text">New Note</span>
+                    </button>
+                    <button id="addFolderBtn" class="new-tab-btn" title="New Folder">
+                        <i class="fas fa-folder-plus"></i> <span class="btn-text">New Folder</span>
+                    </button>
+                </div>
             </div>
             <div id="sidebar-resizer" class="resizer"></div>
         </div>
@@ -758,7 +822,8 @@
             tabs: [],
             activeTabId: null,
             autoLockMinutes: 0,
-            expiryDate: null
+            expiryDate: null,
+            collapsedFolders: []
         };
 
         let encryptionKey = null;
@@ -815,6 +880,7 @@
         const searchInput = document.getElementById('searchInput');
         const searchResults = document.getElementById('searchResults');
         const searchStatus = document.getElementById('searchStatus');
+        const addFolderBtn = document.getElementById('addFolderBtn');
 
         // Privacy & Security
         const securityBtn = document.getElementById('securityBtn');
@@ -906,10 +972,11 @@
             return Math.random().toString(36).substr(2, 9);
         }
 
-        function createTab(title = "Untitled", content = "") {
+        function createTab(title = "Untitled", content = "", type = "note") {
             const id = generateId();
-            const tab = { id, title, content };
-            appState.tabs.push(tab);
+            const item = { id, title, content, type };
+            if (type === 'folder') item.children = [];
+            appState.tabs.push(item);
             return id;
         }
 
@@ -958,14 +1025,11 @@
         }
 
         function activateTab(id) {
-            const tab = appState.tabs.find(t => t.id === id);
-            if (!tab) return;
-
-            // Save current content before switching?
-            // Actually, we update content on 'input' event, so state should be up to date.
+            const tab = findItemById(id);
+            if (!tab || tab.type === 'folder') return;
 
             appState.activeTabId = id;
-            editor.value = tab.content;
+            editor.value = tab.content || "";
 
             if (isPreviewMode) {
                 renderMarkdownPreview();
@@ -977,32 +1041,35 @@
         }
 
         function closeTab(e, id) {
-            e.stopPropagation(); // Prevent activating the tab when clicking close
+            e.stopPropagation();
+            const item = findItemById(id);
+            if (!item) return;
 
-            if (appState.tabs.length <= 1) {
-                // If last tab, just clear it or ask to reset?
-                showConfirm("Close last tab?", "This will clear all content in this note.", () => {
-                    appState.tabs[0].content = "";
-                    appState.tabs[0].title = "Untitled";
-                    activateTab(appState.tabs[0].id);
-                    performSave();
-                });
-                return;
-            }
+            const msg = item.type === 'folder' ? "Delete Folder?" : "Close Tab?";
+            const desc = item.type === 'folder' ? "This will delete the folder and all notes inside." : "Are you sure you want to close this tab?";
 
-            // If closing active tab, switch to another
-            const index = appState.tabs.findIndex(t => t.id === id);
-            const isActive = (id === appState.activeTabId);
-
-            // For simple closing of non-last tab, maybe minimal confirm or no confirm? 
-            // Stick to safe UX:
-            if (appState.tabs[index].content.trim().length > 0) {
-                showConfirm("Close Tab?", "Are you sure you want to close this tab?", () => {
-                    actuallyCloseTab(index, isActive);
-                });
-            } else {
-                actuallyCloseTab(index, isActive);
-            }
+            showConfirm(msg, desc, () => {
+                removeItemById(id);
+                if (id === appState.activeTabId || item.type === 'folder') {
+                    // Try to find any other note to activate
+                    const allNotes = [];
+                    function collectNotes(items) {
+                        items.forEach(i => {
+                            if (i.type === 'note') allNotes.push(i);
+                            if (i.type === 'folder') collectNotes(i.children);
+                        });
+                    }
+                    collectNotes(appState.tabs);
+                    if (allNotes.length > 0) {
+                        activateTab(allNotes[0].id);
+                    } else {
+                        const newId = createTab();
+                        activateTab(newId);
+                    }
+                }
+                renderTabs();
+                performSave();
+            });
         }
 
         function actuallyCloseTab(index, isActive) {
@@ -1016,59 +1083,171 @@
             performSave();
         }
 
-        function renameTab(id) {
-            openRenameModal(id);
-        }
-
         function renderTabs() {
             tabBar.innerHTML = '';
-            appState.tabs.forEach(tab => {
-                const isActive = tab.id === appState.activeTabId;
+            renderRecursive(appState.tabs, tabBar, 0);
+        }
 
-                const tabEl = document.createElement('div');
-                tabEl.className = `tab ${isActive ? 'active' : ''}`;
-                tabEl.onclick = () => activateTab(tab.id);
-                tabEl.ondblclick = () => renameTab(tab.id);
-
-                // Content container
-                const icon = document.createElement('i');
-                icon.className = 'fas fa-file-alt tab-icon';
-
-                const titleSpan = document.createElement('span');
-                titleSpan.innerText = tab.title;
-                titleSpan.className = 'tab-title';
-
-                // Actions container
-                const actions = document.createElement('div');
-                actions.className = 'tab-actions';
-
-                // Rename Btn
-                const renameBtn = document.createElement('div');
-                renameBtn.className = 'action-btn';
-                renameBtn.innerHTML = '<i class="fas fa-pen"></i>';
-                renameBtn.title = "Rename";
-                renameBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    renameTab(tab.id);
+        function renderRecursive(items, container, depth) {
+            items.forEach(item => {
+                const el = createTabElement(item, depth);
+                container.appendChild(el);
+                if (item.type === 'folder' && !appState.collapsedFolders.includes(item.id)) {
+                    renderRecursive(item.children || [], container, depth + 1);
                 }
-
-                // Close Btn
-                const closeBtn = document.createElement('div');
-                closeBtn.className = 'action-btn delete';
-                closeBtn.innerHTML = '<i class="fas fa-times"></i>';
-                closeBtn.title = "Delete";
-                closeBtn.onclick = (e) => closeTab(e, tab.id);
-
-                actions.append(renameBtn, closeBtn);
-                tabEl.append(icon, titleSpan, actions);
-                tabBar.appendChild(tabEl);
             });
+        }
+
+        let draggedItemId = null;
+
+        function createTabElement(item, depth) {
+            const isActive = item.id === appState.activeTabId;
+            const isFolder = item.type === 'folder';
+            const isCollapsed = appState.collapsedFolders.includes(item.id);
+
+            const tabEl = document.createElement('div');
+            tabEl.className = `tab ${isActive ? 'active' : ''} ${isFolder ? 'folder' : ''}`;
+            tabEl.style.paddingLeft = `${depth * 16 + 12}px`;
+            tabEl.draggable = true;
+
+            // Folder Toggle
+            const indent = document.createElement('div');
+            indent.className = 'tab-indent';
+            if (isFolder) {
+                const toggle = document.createElement('i');
+                toggle.className = `fas fa-chevron-right folder-toggle ${isCollapsed ? 'collapsed' : 'open'}`;
+                toggle.onclick = (e) => {
+                    e.stopPropagation();
+                    if (isCollapsed) {
+                        appState.collapsedFolders = appState.collapsedFolders.filter(id => id !== item.id);
+                    } else {
+                        appState.collapsedFolders.push(item.id);
+                    }
+                    renderTabs();
+                    performSave();
+                };
+                indent.appendChild(toggle);
+            }
+            tabEl.appendChild(indent);
+
+            const icon = document.createElement('i');
+            icon.className = isFolder ? (isCollapsed ? 'fas fa-folder' : 'fas fa-folder-open') : 'fas fa-file-alt';
+            icon.className += ' tab-icon';
+            tabEl.appendChild(icon);
+
+            const titleSpan = document.createElement('span');
+            titleSpan.innerText = item.title;
+            titleSpan.className = 'tab-title';
+            tabEl.appendChild(titleSpan);
+
+            const actions = document.createElement('div');
+            actions.className = 'tab-actions';
+
+            const renameBtn = document.createElement('div');
+            renameBtn.className = 'action-btn';
+            renameBtn.innerHTML = '<i class="fas fa-pen"></i>';
+            renameBtn.onclick = (e) => { e.stopPropagation(); renameTab(item.id); };
+
+            const deleteBtn = document.createElement('div');
+            deleteBtn.className = 'action-btn delete';
+            deleteBtn.innerHTML = '<i class="fas fa-times"></i>';
+            deleteBtn.onclick = (e) => closeTab(e, item.id);
+
+            actions.append(renameBtn, deleteBtn);
+            tabEl.appendChild(actions);
+
+            tabEl.onclick = () => { if (!isFolder) activateTab(item.id); };
+
+            // Drag Events
+            tabEl.ondragstart = (e) => {
+                draggedItemId = item.id;
+                tabEl.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+            };
+
+            tabEl.ondragend = () => tabEl.classList.remove('dragging');
+
+            tabEl.ondragover = (e) => {
+                e.preventDefault();
+                if (draggedItemId === item.id) return;
+                const rect = tabEl.getBoundingClientRect();
+                const mid = rect.top + rect.height / 2;
+                if (isFolder) {
+                    tabEl.classList.add('drag-over-folder');
+                } else {
+                    tabEl.classList.add('drag-over');
+                }
+            };
+
+            tabEl.ondragleave = () => {
+                tabEl.classList.remove('drag-over', 'drag-over-folder');
+            };
+
+            tabEl.ondrop = (e) => {
+                e.preventDefault();
+                tabEl.classList.remove('drag-over', 'drag-over-folder');
+                if (draggedItemId === item.id) return;
+                moveItem(draggedItemId, item.id, isFolder);
+                renderTabs();
+                performSave();
+            };
+
+            return tabEl;
+        }
+
+        function findItemById(id, items = appState.tabs) {
+            for (const item of items) {
+                if (item.id === id) return item;
+                if (item.type === 'folder' && item.children) {
+                    const found = findItemById(id, item.children);
+                    if (found) return found;
+                }
+            }
+            return null;
+        }
+
+        function removeItemById(id, items = appState.tabs) {
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].id === id) return items.splice(i, 1)[0];
+                if (items[i].type === 'folder' && items[i].children) {
+                    const found = removeItemById(id, items[i].children);
+                    if (found) return found;
+                }
+            }
+            return null;
+        }
+
+        function moveItem(sourceId, targetId, isTargetFolder) {
+            const item = removeItemById(sourceId);
+            if (!item) return;
+
+            if (isTargetFolder) {
+                const folder = findItemById(targetId);
+                folder.children.push(item);
+            } else {
+                // Find target parent and index
+                insertAfter(item, targetId, appState.tabs);
+            }
+        }
+
+        function insertAfter(item, targetId, list) {
+            const idx = list.findIndex(i => i.id === targetId);
+            if (idx !== -1) {
+                list.splice(idx + 1, 0, item);
+                return true;
+            }
+            for (const i of list) {
+                if (i.type === 'folder' && i.children) {
+                    if (insertAfter(item, targetId, i.children)) return true;
+                }
+            }
+            return false;
         }
 
         // --- Core Editor Logic ---
 
         function updateCurrentTabState() {
-            const tab = appState.tabs.find(t => t.id === appState.activeTabId);
+            const tab = findItemById(appState.activeTabId);
             if (tab) {
                 tab.content = editor.value;
             }
@@ -1165,11 +1344,18 @@
                 // Migration: Treat as single file content
                 appState = {
                     tabs: [],
-                    activeTabId: null
+                    activeTabId: null,
+                    autoLockMinutes: 0,
+                    expiryDate: null,
+                    collapsedFolders: []
                 };
                 const id = createTab("Untitled", content || "");
                 appState.activeTabId = id;
             }
+
+            // Ensure consistent defaults for new properties
+            if (!appState.autoLockMinutes) appState.autoLockMinutes = 0;
+            if (!appState.collapsedFolders) appState.collapsedFolders = [];
 
             // Ensure at least one tab
             if (appState.tabs.length === 0) {
@@ -1366,10 +1552,21 @@
 
         function renderSearchResults(query) {
             searchResults.innerHTML = '';
-            searchFilteredTabs = appState.tabs.filter(tab =>
-                tab.title.toLowerCase().includes(query.toLowerCase()) ||
-                tab.content.toLowerCase().includes(query.toLowerCase())
-            );
+            searchFilteredTabs = [];
+
+            function searchRecursive(items) {
+                items.forEach(item => {
+                    if (item.type === 'note') {
+                        if (item.title.toLowerCase().includes(query.toLowerCase()) ||
+                            item.content.toLowerCase().includes(query.toLowerCase())) {
+                            searchFilteredTabs.push(item);
+                        }
+                    } else if (item.children) {
+                        searchRecursive(item.children);
+                    }
+                });
+            }
+            searchRecursive(appState.tabs);
 
             searchStatus.innerText = `${searchFilteredTabs.length} results`;
             selectedSearchIndex = 0;
@@ -1571,6 +1768,13 @@
         addTabBtn.addEventListener('click', () => {
             const id = createTab();
             activateTab(id);
+            renderTabs();
+            performSave();
+        });
+
+        addFolderBtn.addEventListener('click', () => {
+            const id = createTab("New Folder", "", "folder");
+            renderTabs();
             performSave();
         });
 
