@@ -334,6 +334,8 @@
             height: 100%;
             padding: 40px;
             overflow-y: auto;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
         }
 
         #editor {
@@ -349,12 +351,15 @@
 
         #preview {
             width: 100%;
+            word-break: break-all;
         }
 
         .prose {
             max-width: 100% !important;
             /* Force full width override */
             color: inherit;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
         }
 
         [data-theme='dark'] .prose {
@@ -679,8 +684,7 @@
         <div id="editor-container">
             <div id="line-highlight" class="line-highlight"></div>
             <textarea id="editor" placeholder="Start typing..." spellcheck="false"></textarea>
-            <div id="preview-wrapper" class="flex-1"
-                style="display: none; height: 100%; overflow-y: auto; padding: 40px;">
+            <div id="preview-wrapper" class="flex-1" style="display: none; height: 100%; overflow-y: auto;">
                 <div id="toc-container">
                     <h4>On this page</h4>
                     <ul id="toc-list"></ul>
@@ -1498,7 +1502,10 @@
                     }
                     return hljs.highlightAuto(code).value;
                 },
-                breaks: true
+                breaks: true,
+                gfm: true,
+                mangle: false,
+                headerIds: true
             });
 
             // Mermaid Init
@@ -1588,7 +1595,16 @@
         // --- Other UI Logic ---
 
         function renderMarkdownPreview() {
-            const rawContent = editor.value;
+            let rawContent = editor.value;
+
+            // Support links with spaces: [text](link with spaces) -> [text](link%20with%20spaces)
+            rawContent = rawContent.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, text, url) => {
+                if (url.includes(' ') && !url.startsWith('<')) {
+                    return `[${text}](${url.trim().replace(/ /g, '%20')})`;
+                }
+                return match;
+            });
+
             const previewEl = document.getElementById('preview');
             const tocList = document.getElementById('toc-list');
             const tocContainer = document.getElementById('toc-container');
