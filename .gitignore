@@ -28,3 +28,7 @@ lerna-debug.log*
 dist/
 build/
 .netlify/
+
+# Rust/WASM build artifacts
+wasm-core/target/
+wasm-core/pkg/
