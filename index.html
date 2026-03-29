@@ -795,6 +795,7 @@
             <i id="infoBtn" class="fas fa-circle-info btn-icon" data-title="Shortcuts & Info"></i>
             <i id="linesToggle" class="fas fa-list-ol btn-icon" data-title="Toggle Line Numbers"></i>
             <i id="themeToggle" class="fas fa-sun btn-icon" data-title="Toggle Dark Mode"></i>
+            <i id="browserSaveBtn" class="fas fa-hard-drive btn-icon" data-title="Save to Browser"></i>
             <i id="downloadBtn" class="fas fa-download btn-icon" data-title="Download contents"></i>
             <i id="copyBtn" class="fas fa-copy btn-icon" data-title="Copy Raw Text"></i>
             <i id="clearBtn" class="fas fa-trash-alt btn-icon text-red-400" data-title="Clear All"></i>
@@ -903,7 +904,7 @@
     </div>
 
     <!-- Confirm Modal -->
-    <div id="confirmModal" class="fixed inset-0 modal-overlay z-50 flex items-center justify-center hidden">
+    <div id="confirmModal" class="fixed inset-0 modal-overlay z-[70] flex items-center justify-center hidden">
         <div class="bg-[#1e1e1e] p-8 rounded-xl w-full max-w-sm border border-gray-800 shadow-2xl text-center">
             <h3 id="confirmTitle" class="text-lg font-bold mb-4 text-white">Are you sure?</h3>
             <p id="confirmDesc" class="text-gray-400 text-sm mb-6">This action cannot be undone.</p>
@@ -1139,6 +1140,75 @@
             </div>
         </div>
     </div>
+
+    <!-- Welcome Modal -->
+    <div id="welcomeModal" class="fixed inset-0 modal-overlay z-[60] flex items-center justify-center hidden">
+        <div class="bg-[#1e1e1e] p-8 rounded-xl w-full max-w-md border border-gray-800 shadow-2xl">
+            <h3 class="text-2xl font-bold mb-2 text-white text-center">EZ Text Editor</h3>
+            <p class="text-gray-400 text-sm mb-6 text-center">How would you like to start?</p>
+
+            <!-- URL document notice (shown conditionally) -->
+            <div id="welcomeUrlNotice" class="hidden mb-4 p-3 rounded-lg bg-blue-900/30 border border-blue-800">
+                <p class="text-blue-300 text-sm"><i class="fas fa-link mr-2"></i>A document was found in the URL.</p>
+            </div>
+
+            <div class="flex flex-col gap-3">
+                <button id="welcomeOpenUrl" class="hidden w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition font-medium flex items-center gap-3 justify-center">
+                    <i class="fas fa-link"></i> Open Document from URL
+                </button>
+                <button id="welcomeNew" class="w-full px-4 py-3 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition font-medium flex items-center gap-3 justify-center border border-gray-700">
+                    <i class="fas fa-file-circle-plus"></i> Start New
+                </button>
+                <button id="welcomeOpenFile" class="w-full px-4 py-3 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition font-medium flex items-center gap-3 justify-center border border-gray-700">
+                    <i class="fas fa-folder-open"></i> Open from File
+                </button>
+                <input type="file" id="welcomeFileInput" accept=".zip,.html" class="hidden">
+
+                <div id="welcomeSavedSection" class="hidden mt-2">
+                    <p class="text-gray-500 text-xs uppercase tracking-widest mb-2 font-bold">Saved in Browser</p>
+                    <div id="welcomeSavedList" class="flex flex-col gap-2 max-h-40 overflow-y-auto"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Save to Browser Modal -->
+    <div id="browserSaveModal" class="fixed inset-0 modal-overlay z-50 flex items-center justify-center hidden">
+        <div class="bg-[#1e1e1e] p-8 rounded-xl w-full max-w-md border border-gray-800 shadow-2xl">
+            <h3 class="text-xl font-bold mb-4 text-white">Save to Browser</h3>
+            <p class="text-gray-400 text-sm mb-6">Your notebook will be encrypted and stored locally in this browser.</p>
+            <input type="text" id="browserSaveName"
+                class="w-full bg-black border border-gray-700 rounded p-3 mb-3 text-white outline-none focus:border-blue-500 transition-colors"
+                placeholder="Notebook name...">
+            <input type="password" id="browserSavePassword"
+                class="w-full bg-black border border-gray-700 rounded p-3 mb-2 text-white outline-none focus:border-blue-500 transition-colors"
+                placeholder="Encryption password...">
+            <p id="browserSaveError" class="text-red-500 text-xs mb-4 opacity-0">Please provide a name and password.</p>
+            <div class="flex justify-end gap-3">
+                <button id="browserSaveCancel" class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+                <button id="browserSaveSubmit"
+                    class="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-500 transition">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Browser Save Password Prompt (for opening saved notebooks) -->
+    <div id="browserOpenModal" class="fixed inset-0 modal-overlay z-[61] flex items-center justify-center hidden">
+        <div id="browserOpenContainer" class="bg-[#1e1e1e] p-8 rounded-xl w-full max-w-md border border-gray-800 shadow-2xl">
+            <h3 class="text-xl font-bold mb-4 text-white">Open Saved Notebook</h3>
+            <p id="browserOpenDesc" class="text-gray-400 text-sm mb-6">Enter the password to decrypt this notebook.</p>
+            <input type="password" id="browserOpenPassword"
+                class="w-full bg-black border border-gray-700 rounded p-3 mb-2 text-white outline-none focus:border-blue-500 transition-colors"
+                placeholder="Enter password...">
+            <p id="browserOpenError" class="text-red-500 text-xs mb-4 opacity-0">Incorrect password. Please try again.</p>
+            <div class="flex justify-end gap-3">
+                <button id="browserOpenCancel" class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+                <button id="browserOpenSubmit"
+                    class="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-500 transition">Decrypt</button>
+            </div>
+        </div>
+    </div>
+
     <div id="panicOverlay" class="fixed inset-0">
         <div class="panic-header">
             <div class="flex items-center gap-4">

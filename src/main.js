@@ -34,6 +34,7 @@ let isResizing = false;
 let sidebarWidth = 260;
 let lastActivity = Date.now();
 let isPanicMode = false;
+let welcomeResolved = false; // tracks whether the welcome modal has been dismissed
 
 // ─── Platform Detection ─────────────────────────────────────────────────────
 const IS_MAC = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
@@ -121,7 +122,101 @@ const confirmDesc = document.getElementById('confirmDesc');
 const confirmYes = document.getElementById('confirmYes');
 const confirmCancel = document.getElementById('confirmCancel');
 
+// Welcome Modal elements
+const welcomeModal = document.getElementById('welcomeModal');
+const welcomeUrlNotice = document.getElementById('welcomeUrlNotice');
+const welcomeOpenUrl = document.getElementById('welcomeOpenUrl');
+const welcomeNew = document.getElementById('welcomeNew');
+const welcomeOpenFile = document.getElementById('welcomeOpenFile');
+const welcomeFileInput = document.getElementById('welcomeFileInput');
+const welcomeSavedSection = document.getElementById('welcomeSavedSection');
+const welcomeSavedList = document.getElementById('welcomeSavedList');
+
+// Browser Save Modal elements
+const browserSaveBtn = document.getElementById('browserSaveBtn');
+const browserSaveModal = document.getElementById('browserSaveModal');
+const browserSaveName = document.getElementById('browserSaveName');
+const browserSavePassword = document.getElementById('browserSavePassword');
+const browserSaveError = document.getElementById('browserSaveError');
+const browserSaveSubmit = document.getElementById('browserSaveSubmit');
+const browserSaveCancel = document.getElementById('browserSaveCancel');
+
+// Browser Open Modal elements
+const browserOpenModal = document.getElementById('browserOpenModal');
+const browserOpenContainer = document.getElementById('browserOpenContainer');
+const browserOpenDesc = document.getElementById('browserOpenDesc');
+const browserOpenPassword = document.getElementById('browserOpenPassword');
+const browserOpenError = document.getElementById('browserOpenError');
+const browserOpenSubmit = document.getElementById('browserOpenSubmit');
+const browserOpenCancel = document.getElementById('browserOpenCancel');
+
 let confirmCallback = null;
+
+// ─── IndexedDB Browser Storage ─────────────────────────────────────────────
+const DB_NAME = 'ez_text_editor';
+const DB_STORE = 'notebooks';
+const DB_VERSION = 1;
+
+function openDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        request.onupgradeneeded = () => {
+            const db = request.result;
+            if (!db.objectStoreNames.contains(DB_STORE)) {
+                db.createObjectStore(DB_STORE, { keyPath: 'name' });
+            }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+async function saveNotebookToBrowser(name, password) {
+    updateCurrentTabState();
+    const dataToSave = JSON.stringify(appState);
+    const encrypted = await encryptText(dataToSave, password);
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(DB_STORE, 'readwrite');
+        tx.objectStore(DB_STORE).put({
+            name,
+            data: encrypted,
+            savedAt: Date.now()
+        });
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+    });
+}
+
+async function listBrowserNotebooks() {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(DB_STORE, 'readonly');
+        const request = tx.objectStore(DB_STORE).getAll();
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+async function loadBrowserNotebook(name) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(DB_STORE, 'readonly');
+        const request = tx.objectStore(DB_STORE).get(name);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+async function deleteBrowserNotebook(name) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(DB_STORE, 'readwrite');
+        tx.objectStore(DB_STORE).delete(name);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+    });
+}
 
 // ─── Confirm Modal ──────────────────────────────────────────────────────────
 function showConfirm(title, desc, callback) {
@@ -1860,6 +1955,219 @@ function initTutorial() {
     }
 }
 
+// ─── Welcome Modal Logic ───────────────────────────────────────────────────
+
+function dismissWelcome() {
+    welcomeModal.classList.add('hidden');
+    isModalOpen = false;
+    welcomeResolved = true;
+    initTutorial();
+}
+
+async function populateSavedNotebooks() {
+    try {
+        const notebooks = await listBrowserNotebooks();
+        if (notebooks.length > 0) {
+            welcomeSavedSection.classList.remove('hidden');
+            welcomeSavedList.innerHTML = '';
+            notebooks.sort((a, b) => b.savedAt - a.savedAt);
+            for (const nb of notebooks) {
+                const row = document.createElement('div');
+                row.className = 'flex items-center gap-2';
+                const btn = document.createElement('button');
+                btn.className = 'flex-1 px-3 py-2 bg-gray-900 text-left text-white rounded-lg hover:bg-gray-800 transition text-sm border border-gray-700 flex items-center gap-2';
+                const date = new Date(nb.savedAt);
+                const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                btn.innerHTML = `<i class="fas fa-lock text-blue-400 text-xs"></i> <span class="flex-1 truncate">${nb.name}</span> <span class="text-gray-500 text-xs">${dateStr}</span>`;
+                btn.onclick = () => openSavedNotebook(nb.name);
+                const delBtn = document.createElement('button');
+                delBtn.className = 'px-2 py-2 text-gray-600 hover:text-red-400 transition text-sm';
+                delBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
+                delBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    showConfirm("Delete Saved Notebook?", `Remove "${nb.name}" from browser storage? This cannot be undone.`, async () => {
+                        await deleteBrowserNotebook(nb.name);
+                        populateSavedNotebooks();
+                    });
+                };
+                row.appendChild(btn);
+                row.appendChild(delBtn);
+                welcomeSavedList.appendChild(row);
+            }
+        } else {
+            welcomeSavedSection.classList.add('hidden');
+        }
+    } catch (e) {
+        welcomeSavedSection.classList.add('hidden');
+    }
+}
+
+function openSavedNotebook(name) {
+    browserOpenDesc.innerText = `Enter the password to decrypt "${name}".`;
+    browserOpenPassword.value = '';
+    browserOpenError.classList.add('opacity-0');
+    browserOpenModal.classList.remove('hidden');
+
+    const handleDecrypt = async () => {
+        const pass = browserOpenPassword.value;
+        if (!pass) {
+            browserOpenError.classList.remove('opacity-0');
+            browserOpenError.innerText = 'Please enter a password.';
+            return;
+        }
+        try {
+            const record = await loadBrowserNotebook(name);
+            if (!record) {
+                browserOpenError.innerText = 'Notebook not found.';
+                browserOpenError.classList.remove('opacity-0');
+                return;
+            }
+            const decrypted = await decryptText(record.data, pass);
+            if (decrypted !== null) {
+                browserOpenModal.classList.add('hidden');
+                dismissWelcome();
+                loadFromContent(decrypted);
+                window.location.hash = '';
+                editor.focus();
+            } else {
+                browserOpenError.innerText = 'Incorrect password. Please try again.';
+                browserOpenError.classList.remove('opacity-0');
+                browserOpenContainer.classList.add('shake');
+                setTimeout(() => browserOpenContainer.classList.remove('shake'), 400);
+                browserOpenPassword.value = '';
+                browserOpenPassword.focus();
+            }
+        } catch (e) {
+            browserOpenError.innerText = 'Failed to open notebook.';
+            browserOpenError.classList.remove('opacity-0');
+        }
+    };
+
+    browserOpenSubmit.onclick = handleDecrypt;
+    browserOpenPassword.onkeydown = (e) => { if (e.key === 'Enter') handleDecrypt(); };
+    browserOpenCancel.onclick = () => {
+        browserOpenModal.classList.add('hidden');
+    };
+}
+
+async function importFromFile(file) {
+    try {
+        if (file.name.endsWith('.zip')) {
+            const zip = await JSZip.loadAsync(file);
+            const htmlFile = zip.file("Open Notebook.html") || zip.file(/\.html$/i)[0];
+            if (!htmlFile) throw new Error("No HTML file found in zip");
+            const htmlContent = await htmlFile.async("string");
+            const hashMatch = htmlContent.match(/#(enc_[A-Za-z0-9_-]+|[A-Za-z0-9_-]+)/);
+            if (!hashMatch) throw new Error("No notebook data found in file");
+            return hashMatch[1];
+        } else if (file.name.endsWith('.html')) {
+            const htmlContent = await file.text();
+            const hashMatch = htmlContent.match(/#(enc_[A-Za-z0-9_-]+|[A-Za-z0-9_-]+)/);
+            if (!hashMatch) throw new Error("No notebook data found in file");
+            return hashMatch[1];
+        }
+        throw new Error("Unsupported file type");
+    } catch (e) {
+        console.error("File import failed:", e);
+        return null;
+    }
+}
+
+welcomeNew.addEventListener('click', () => {
+    dismissWelcome();
+    window.location.hash = '';
+    loadFromContent("");
+    editor.focus();
+});
+
+welcomeOpenFile.addEventListener('click', () => {
+    welcomeFileInput.click();
+});
+
+welcomeFileInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const hash = await importFromFile(file);
+    if (!hash) {
+        alert("Could not read notebook data from this file.");
+        return;
+    }
+    if (hash.startsWith('enc_')) {
+        const encryptedData = hash.substring(4);
+        dismissWelcome();
+        showModal("Decrypt Notebook", "This file is encrypted. Enter password to open.", async (pass) => {
+            const decrypted = await decryptText(encryptedData, pass);
+            if (decrypted !== null) {
+                encryptionKey = pass;
+                loadFromContent(decrypted);
+                lockBtn.classList.replace('fa-unlock', 'fa-lock');
+                encryptionBadge.classList.remove('hidden');
+                passwordModal.classList.add('hidden');
+                isModalOpen = false;
+                editor.focus();
+            } else {
+                passwordInput.classList.add('border-red-500');
+                passwordError.classList.remove('opacity-0');
+                modalContainer.classList.add('shake');
+                setTimeout(() => modalContainer.classList.remove('shake'), 400);
+                passwordInput.value = '';
+                passwordInput.focus();
+            }
+        });
+    } else {
+        dismissWelcome();
+        const decoded = await decodeFromUrl(hash);
+        if (decoded !== null) {
+            loadFromContent(decoded);
+        } else {
+            loadFromContent("");
+        }
+        editor.focus();
+    }
+    welcomeFileInput.value = '';
+});
+
+// ─── Save to Browser ───────────────────────────────────────────────────────
+
+browserSaveBtn.addEventListener('click', () => {
+    const activeTab = findItemById(appState.activeTabId);
+    browserSaveName.value = activeTab ? activeTab.title : 'My Notebook';
+    browserSavePassword.value = '';
+    browserSaveError.classList.add('opacity-0');
+    browserSaveModal.classList.remove('hidden');
+    isModalOpen = true;
+    browserSaveName.focus();
+});
+
+browserSaveSubmit.addEventListener('click', async () => {
+    const name = browserSaveName.value.trim();
+    const pass = browserSavePassword.value;
+    if (!name || !pass) {
+        browserSaveError.innerText = 'Please provide a name and password.';
+        browserSaveError.classList.remove('opacity-0');
+        return;
+    }
+    try {
+        await saveNotebookToBrowser(name, pass);
+        browserSaveModal.classList.add('hidden');
+        isModalOpen = false;
+        saveIndicator.classList.remove('opacity-0');
+        setTimeout(() => saveIndicator.classList.add('opacity-0'), 1000);
+    } catch (e) {
+        browserSaveError.innerText = 'Failed to save. Try again.';
+        browserSaveError.classList.remove('opacity-0');
+    }
+});
+
+browserSaveCancel.addEventListener('click', () => {
+    browserSaveModal.classList.add('hidden');
+    isModalOpen = false;
+});
+
+browserSavePassword.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') browserSaveSubmit.click();
+});
+
 // ─── Initialization (WASM + App) ────────────────────────────────────────────
 
 async function init() {
@@ -1887,53 +2195,64 @@ async function init() {
         mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' });
     }
 
-    const hash = window.location.hash.substring(1);
-
-    if (hash.startsWith('enc_')) {
-        const encryptedData = hash.substring(4);
-
-        const handleInitialDecryption = async (pass) => {
-            const decrypted = await decryptText(encryptedData, pass);
-            if (decrypted !== null) {
-                encryptionKey = pass;
-                loadFromContent(decrypted);
-                lockBtn.classList.replace('fa-unlock', 'fa-lock');
-                encryptionBadge.classList.remove('hidden');
-                passwordModal.classList.add('hidden');
-                isModalOpen = false;
-                updateCounts();
-            } else {
-                passwordInput.classList.add('border-red-500');
-                passwordError.classList.remove('opacity-0');
-                modalContainer.classList.add('shake');
-                setTimeout(() => modalContainer.classList.remove('shake'), 400);
-                passwordInput.value = '';
-                passwordInput.focus();
-            }
-        };
-
-        showModal("Decrypt Notebook", "This notebook is encrypted. Enter password to view tabs.", handleInitialDecryption);
-    } else if (hash) {
-        const decoded = await decodeFromUrl(hash);
-        if (decoded !== null) {
-            loadFromContent(decoded);
-        } else {
-            loadFromContent("");
-        }
-    } else {
-        loadFromContent("");
-    }
-
     if (localStorage.getItem('minimal_editor_theme') === 'light') {
         document.body.setAttribute('data-theme', 'light');
         themeToggle.classList.replace('fa-sun', 'fa-moon');
     }
 
-    if (!isModalOpen) editor.focus();
+    const hash = window.location.hash.substring(1);
+    const hasUrlContent = !!hash;
+    const isEncrypted = hash.startsWith('enc_');
+
+    // Show welcome modal
+    welcomeModal.classList.remove('hidden');
+    isModalOpen = true;
+
+    // If URL has content, show the "Open from URL" option
+    if (hasUrlContent) {
+        welcomeUrlNotice.classList.remove('hidden');
+        welcomeOpenUrl.classList.remove('hidden');
+        welcomeOpenUrl.addEventListener('click', async () => {
+            dismissWelcome();
+            if (isEncrypted) {
+                const encryptedData = hash.substring(4);
+                showModal("Decrypt Notebook", "This notebook is encrypted. Enter password to view tabs.", async (pass) => {
+                    const decrypted = await decryptText(encryptedData, pass);
+                    if (decrypted !== null) {
+                        encryptionKey = pass;
+                        loadFromContent(decrypted);
+                        lockBtn.classList.replace('fa-unlock', 'fa-lock');
+                        encryptionBadge.classList.remove('hidden');
+                        passwordModal.classList.add('hidden');
+                        isModalOpen = false;
+                        updateCounts();
+                        editor.focus();
+                    } else {
+                        passwordInput.classList.add('border-red-500');
+                        passwordError.classList.remove('opacity-0');
+                        modalContainer.classList.add('shake');
+                        setTimeout(() => modalContainer.classList.remove('shake'), 400);
+                        passwordInput.value = '';
+                        passwordInput.focus();
+                    }
+                });
+            } else {
+                const decoded = await decodeFromUrl(hash);
+                if (decoded !== null) {
+                    loadFromContent(decoded);
+                } else {
+                    loadFromContent("");
+                }
+                editor.focus();
+            }
+        });
+    }
+
+    // Populate saved notebooks list
+    await populateSavedNotebooks();
 
     updateShortcutLabels();
     checkExpiry();
-    initTutorial();
 }
 
 // Expose functions for tests

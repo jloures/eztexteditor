@@ -18,6 +18,42 @@ global.crypto.getRandomValues = jest.fn().mockImplementation((arr) => arr);
 global.scrollTo = jest.fn();
 global.alert = jest.fn();
 
+// Mock IndexedDB for browser storage tests
+const mockStore = {};
+const mockIDB = {
+    open: jest.fn().mockImplementation(() => {
+        const request = {
+            result: {
+                objectStoreNames: { contains: () => true },
+                createObjectStore: jest.fn(),
+                transaction: jest.fn().mockReturnValue({
+                    objectStore: jest.fn().mockReturnValue({
+                        put: jest.fn(),
+                        get: jest.fn().mockReturnValue({ onsuccess: null, onerror: null, result: null }),
+                        getAll: jest.fn().mockReturnValue({ onsuccess: null, onerror: null, result: [] }),
+                        delete: jest.fn(),
+                    }),
+                    oncomplete: null,
+                    onerror: null,
+                }),
+            },
+            onupgradeneeded: null,
+            onsuccess: null,
+            onerror: null,
+        };
+        setTimeout(() => { if (request.onsuccess) request.onsuccess(); }, 0);
+        return request;
+    }),
+};
+global.indexedDB = mockIDB;
+
+// Mock JSZip for file import
+global.JSZip = {
+    loadAsync: jest.fn().mockResolvedValue({
+        file: jest.fn().mockReturnValue(null),
+    }),
+};
+
 // Mocking external libraries
 global.marked = {
     setOptions: jest.fn(),
