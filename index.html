@@ -6,27 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Secure Markdown Editor</title>
     <link rel="icon" type="image/png" href="favicon.png">
-    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
-    <!-- marked.js replaced by WASM pulldown-cmark for faster markdown parsing -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-
-    <!-- Advanced Syntax & Rendering -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
-    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
-
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-
-    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-    <script src="https://d3js.org/d3.v7.min.js"></script>
-
-    <!-- Driver.js for Tutorial -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.0.1/dist/driver.css" />
-    <script src="https://cdn.jsdelivr.net/npm/driver.js@1.0.1/dist/driver.js.iife.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500&display=swap');
 
         :root {
             --bg-color: #ffffff;
@@ -513,9 +493,14 @@
             cursor: pointer;
             opacity: 0.6;
             transition: all 0.2s;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .btn-icon:hover {
+            opacity: 1;
+        }
+
+        .btn-icon:active {
             opacity: 1;
         }
 
@@ -799,17 +784,27 @@
 
             /* Header */
             .header-bar {
-                padding: 10px 12px;
-                gap: 8px;
+                padding: 6px 8px;
+                gap: 4px;
             }
 
             .meta-bar {
-                gap: 8px;
+                gap: 4px;
                 font-size: 0.65rem;
             }
 
+            /* Mobile tap targets: minimum 44x44px */
+            .btn-icon {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-width: 44px;
+                min-height: 44px;
+                font-size: 1.1rem;
+            }
+
             .toolbar-buttons {
-                gap: 12px;
+                gap: 0;
             }
 
             /* Hide secondary toolbar buttons by default on mobile */
@@ -892,8 +887,19 @@
 
             .sidebar.collapsed.mobile-open .tab {
                 justify-content: flex-start;
-                padding: 10px 16px;
+                padding: 12px 16px;
                 border-left: 3px solid transparent;
+            }
+
+            /* Touch-friendly sidebar tabs */
+            .tab {
+                min-height: 44px;
+                -webkit-tap-highlight-color: transparent;
+            }
+
+            .new-tab-btn {
+                min-height: 44px;
+                -webkit-tap-highlight-color: transparent;
             }
 
             .sidebar.collapsed.mobile-open .sidebar-header {

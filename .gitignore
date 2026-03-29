@@ -26,6 +26,8 @@ lerna-debug.log*
 
 # Deployment artifacts
 dist/
+dist-single/
+dist-extension/
 build/
 .netlify/
 

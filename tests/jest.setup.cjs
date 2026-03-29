@@ -54,7 +54,7 @@ global.JSZip = {
     }),
 };
 
-// Mocking external libraries
+// Mocking external libraries (these are now ES module imports, stripped in test setup)
 global.marked = {
     setOptions: jest.fn(),
     parse: jest.fn((text) => `<div>${text}</div>`),
@@ -69,6 +69,29 @@ global.hljs = {
     getLanguage: jest.fn(() => true),
     highlightElement: jest.fn(),
 };
+global.katex = {};
+global.renderMathInElement = jest.fn();
+global.d3 = {
+    select: jest.fn(() => ({
+        selectAll: jest.fn().mockReturnThis(),
+        remove: jest.fn().mockReturnThis(),
+        append: jest.fn().mockReturnThis(),
+        attr: jest.fn().mockReturnThis(),
+        call: jest.fn().mockReturnThis(),
+    })),
+    zoom: jest.fn(() => ({ on: jest.fn().mockReturnThis() })),
+    forceSimulation: jest.fn(() => ({
+        force: jest.fn().mockReturnThis(),
+        on: jest.fn().mockReturnThis(),
+    })),
+    forceLink: jest.fn(() => ({ id: jest.fn().mockReturnThis(), distance: jest.fn().mockReturnThis() })),
+    forceManyBody: jest.fn(() => ({ strength: jest.fn().mockReturnThis() })),
+    forceCenter: jest.fn(),
+    drag: jest.fn(() => ({
+        on: jest.fn().mockReturnThis(),
+    })),
+};
+global.driver = jest.fn(() => ({ drive: jest.fn() }));
 
 // Mocking matchMedia
 Object.defineProperty(global, 'matchMedia', {
@@ -147,8 +170,9 @@ beforeEach(() => {
     // Load the main.js source
     let mainCode = fs.readFileSync(path.resolve(__dirname, '../src/main.js'), 'utf8');
 
-    // Remove the ES module import line and the init() call at the bottom
-    mainCode = mainCode.replace(/^import\s+\{[\s\S]*?\}\s+from\s+['"].*?['"];?\s*$/gm, '');
+    // Remove all ES module import lines and the init() call at the bottom
+    mainCode = mainCode.replace(/^import\s+[\s\S]*?from\s+['"].*?['"];?\s*$/gm, '');
+    mainCode = mainCode.replace(/^import\s+['"].*?['"];?\s*$/gm, '');
 
     // Remove the init() boot call - we'll call loadFromContent directly in tests
     mainCode = mainCode.replace(/\/\/ Boot the app\s*\n\s*init\(\);/, '');

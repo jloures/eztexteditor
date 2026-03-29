@@ -14,7 +14,27 @@ import {
     wasmHighlightMatch,
 } from './wasm-bridge.js';
 
+// ─── Bundled Dependencies ──────────────────────────────────────────────────
+import './tailwind.css';
+import '@fontsource/jetbrains-mono/400.css';
+import '@fontsource/jetbrains-mono/500.css';
+import '@fontsource/inter/400.css';
+import '@fontsource/inter/500.css';
+import '@fortawesome/fontawesome-free/css/all.min.css';
+import 'highlight.js/styles/github-dark.css';
+import 'katex/dist/katex.min.css';
+import 'driver.js/dist/driver.css';
+
+import hljs from 'highlight.js';
+import katex from 'katex';
+import renderMathInElement from 'katex/contrib/auto-render';
+import mermaid from 'mermaid';
+import * as d3 from 'd3';
+import { driver } from 'driver.js';
+import JSZip from 'jszip';
+
 // ─── Configuration ──────────────────────────────────────────────────────────
+const IS_EXTENSION = !!(typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id);
 const APP_BASE_URL = window.location.origin + window.location.pathname.replace(/\/$/, "");
 
 // ─── State Management ───────────────────────────────────────────────────────
@@ -215,6 +235,40 @@ async function deleteBrowserNotebook(name) {
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
     });
+}
+
+// ─── Extension Autosave ────────────────────────────────────────────────────
+const AUTOSAVE_KEY = '__ez_autosave__';
+
+async function extensionAutosave(dataJson) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(DB_STORE, 'readwrite');
+        tx.objectStore(DB_STORE).put({
+            name: AUTOSAVE_KEY,
+            data: dataJson,
+            savedAt: Date.now()
+        });
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+    });
+}
+
+async function extensionAutoload() {
+    try {
+        const db = await openDB();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(DB_STORE, 'readonly');
+            const request = tx.objectStore(DB_STORE).get(AUTOSAVE_KEY);
+            request.onsuccess = () => {
+                const record = request.result;
+                resolve(record ? record.data : null);
+            };
+            request.onerror = () => reject(request.error);
+        });
+    } catch (e) {
+        return null;
+    }
 }
 
 // ─── Confirm Modal ──────────────────────────────────────────────────────────
@@ -484,7 +538,12 @@ function createTabElement(item, depth) {
     actions.append(renameBtn, deleteBtn);
     tabEl.appendChild(actions);
 
-    tabEl.onclick = () => { if (!isFolder) activateTab(item.id); };
+    tabEl.onclick = () => {
+        if (!isFolder) {
+            activateTab(item.id);
+            if (isMobile()) closeMobileSidebar();
+        }
+    };
 
     tabEl.ondragstart = (e) => {
         draggedItemId = item.id;
@@ -725,14 +784,18 @@ async function performSave() {
         const dataToSave = JSON.stringify(appState);
 
         try {
-            let hash;
-            if (encryptionKey) {
-                hash = 'enc_' + await encryptText(dataToSave, encryptionKey);
+            if (IS_EXTENSION) {
+                // In extension mode, save to IndexedDB autosave slot
+                await extensionAutosave(dataToSave);
             } else {
-                hash = await encodeToUrl(dataToSave);
+                let hash;
+                if (encryptionKey) {
+                    hash = 'enc_' + await encryptText(dataToSave, encryptionKey);
+                } else {
+                    hash = await encodeToUrl(dataToSave);
+                }
+                window.location.hash = hash;
             }
-
-            window.location.hash = hash;
 
             saveIndicator.classList.remove('opacity-0');
             setTimeout(() => saveIndicator.classList.add('opacity-0'), 1000);
@@ -812,9 +875,7 @@ function renderMarkdownPreview() {
     previewEl.querySelectorAll('pre code[class*="language-"]').forEach(block => {
         // Skip mermaid blocks - they'll be rendered by mermaid.js
         if (block.classList.contains('language-mermaid')) return;
-        if (window.hljs) {
-            hljs.highlightElement(block);
-        }
+        hljs.highlightElement(block);
     });
 
     // Wiki-link click handlers
@@ -845,8 +906,7 @@ function renderMarkdownPreview() {
     });
 
     // KaTeX math rendering
-    if (window.renderMathInElement) {
-        renderMathInElement(previewEl, {
+    renderMathInElement(previewEl, {
             delimiters: [
                 { left: '$$', right: '$$', display: true },
                 { left: '$', right: '$', display: false },
@@ -854,8 +914,7 @@ function renderMarkdownPreview() {
                 { left: '\\[', right: '\\]', display: true }
             ],
             throwOnError: false
-        });
-    }
+    });
 
     // Mermaid rendering
     const mermaidBlocks = previewEl.querySelectorAll('code.language-mermaid');
@@ -1799,24 +1858,29 @@ sidebarOverlay.addEventListener('click', closeMobileSidebar);
 const toolbarOverflowBtn = document.getElementById('toolbarOverflowBtn');
 const toolbarButtons = document.querySelector('.toolbar-buttons');
 
-toolbarOverflowBtn.addEventListener('click', () => {
+toolbarOverflowBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
     toolbarButtons.classList.toggle('overflow-open');
 });
 
-// Close overflow when clicking outside
-document.addEventListener('click', (e) => {
-    if (toolbarButtons.classList.contains('overflow-open') &&
-        !toolbarButtons.contains(e.target)) {
+// Close overflow when any toolbar button inside is clicked (except the toggle itself)
+toolbarButtons.addEventListener('click', (e) => {
+    const btn = e.target.closest('.btn-icon');
+    if (btn && btn !== toolbarOverflowBtn && toolbarButtons.classList.contains('overflow-open')) {
         toolbarButtons.classList.remove('overflow-open');
     }
 });
 
-// Close mobile sidebar when activating a tab (on mobile)
-const origActivateTab = activateTab;
-window.activateTab = function(id) {
-    origActivateTab(id);
-    if (isMobile()) closeMobileSidebar();
-};
+// Close overflow when clicking outside (use touchend + click for mobile reliability)
+function closeOverflowIfOutside(e) {
+    if (toolbarButtons.classList.contains('overflow-open') &&
+        !toolbarButtons.contains(e.target)) {
+        toolbarButtons.classList.remove('overflow-open');
+    }
+}
+document.addEventListener('click', closeOverflowIfOutside);
+document.addEventListener('touchend', closeOverflowIfOutside);
+
 
 // ─── Tab Key Handling ───────────────────────────────────────────────────────
 editor.addEventListener('keydown', (e) => {
@@ -1893,12 +1957,6 @@ function startTutorial() {
     if (graphModal) graphModal.classList.add('hidden');
     isModalOpen = false;
 
-    if (typeof window.driver === 'undefined' || !window.driver.js) {
-        console.error('Driver.js not loaded');
-        return;
-    }
-
-    const driver = window.driver.js.driver;
     const driverObj = driver({
         showProgress: true,
         animate: true,
@@ -1945,7 +2003,8 @@ function dismissWelcome() {
 
 async function populateSavedNotebooks() {
     try {
-        const notebooks = await listBrowserNotebooks();
+        const allNotebooks = await listBrowserNotebooks();
+        const notebooks = allNotebooks.filter(nb => nb.name !== AUTOSAVE_KEY);
         if (notebooks.length > 0) {
             welcomeSavedSection.classList.remove('hidden');
             welcomeSavedList.innerHTML = '';
@@ -2153,30 +2212,26 @@ async function init() {
     // Initialize WASM module first
     await initWasm();
 
-    // Configure marked.js as fallback (still used for edge cases)
-    if (window.marked) {
-        marked.setOptions({
-            highlight: function (code, lang) {
-                if (lang && hljs.getLanguage(lang)) {
-                    return hljs.highlight(code, { language: lang }).value;
-                }
-                return hljs.highlightAuto(code).value;
-            },
-            breaks: true,
-            gfm: true,
-            mangle: false,
-            headerIds: true
-        });
-    }
-
     // Mermaid Init
-    if (window.mermaid) {
-        mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' });
-    }
+    mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' });
 
     if (localStorage.getItem('minimal_editor_theme') === 'light') {
         document.body.setAttribute('data-theme', 'light');
         themeToggle.classList.replace('fa-sun', 'fa-moon');
+    }
+
+    // In extension mode, try to autoload from IndexedDB
+    if (IS_EXTENSION) {
+        const autosaved = await extensionAutoload();
+        if (autosaved) {
+            loadFromContent(autosaved);
+            editor.focus();
+            updateShortcutLabels();
+            checkExpiry();
+            initTutorial();
+            return;
+        }
+        // No autosave — fall through to welcome modal
     }
 
     const hash = window.location.hash.substring(1);
