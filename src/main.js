@@ -44,7 +44,7 @@ const ALT_OPT = IS_MAC ? '⌥' : 'Alt';
 // ─── DOM Elements ───────────────────────────────────────────────────────────
 const editor = document.getElementById('editor');
 const preview = document.getElementById('preview');
-const lineHighlight = document.getElementById('line-highlight');
+
 const tabBar = document.getElementById('tabBar');
 const addTabBtn = document.getElementById('addTabBtn');
 const sidebar = document.getElementById('sidebar');
@@ -78,7 +78,6 @@ const shareClose = document.getElementById('shareClose');
 const shareCopy = document.getElementById('shareCopy');
 
 const zenToggle = document.getElementById('zenToggle');
-const typewriterToggle = document.getElementById('typewriterToggle');
 const searchToggle = document.getElementById('searchToggle');
 const searchModal = document.getElementById('searchModal');
 const searchInput = document.getElementById('searchInput');
@@ -380,7 +379,6 @@ function activateTab(id) {
     } else {
         editor.focus();
     }
-    updateTypewriterAndHighlight(true);
 }
 
 function closeTab(e, id) {
@@ -721,7 +719,6 @@ async function performSave() {
         appState.settings = {
             isPreviewMode,
             isZen: document.body.classList.contains('zen-mode'),
-            isTypewriter,
             showLineNumbers
         };
 
@@ -789,9 +786,6 @@ function loadFromContent(content) {
         if (s.isZen !== undefined) {
             const currentlyZen = document.body.classList.contains('zen-mode');
             if (s.isZen !== currentlyZen) toggleZen();
-        }
-        if (s.isTypewriter !== undefined && s.isTypewriter !== isTypewriter) {
-            toggleTypewriter();
         }
         if (s.showLineNumbers !== undefined && s.showLineNumbers !== showLineNumbers) {
             toggleLineNumbers();
@@ -903,7 +897,6 @@ function togglePreview() {
         previewToggle.classList.replace('fa-eye', 'fa-pen');
         modeBadge.innerText = 'PREVIEW';
         modeBadge.classList.replace('bg-gray-800', 'bg-blue-900');
-        updateTypewriterAndHighlight();
     } else {
         editor.style.display = 'block';
         previewWrapper.style.display = 'none';
@@ -911,7 +904,6 @@ function togglePreview() {
         modeBadge.innerText = 'EDIT';
         modeBadge.classList.replace('bg-blue-900', 'bg-gray-800');
         editor.focus();
-        updateTypewriterAndHighlight(true);
     }
     performSave();
 }
@@ -983,19 +975,6 @@ function toggleZen() {
     performSave();
 }
 zenToggle.addEventListener('click', toggleZen);
-
-// Typewriter Scrolling
-let isTypewriter = false;
-function toggleTypewriter() {
-    isTypewriter = !isTypewriter;
-    document.body.classList.toggle('typewriter-active', isTypewriter);
-    typewriterToggle.classList.toggle('btn-active', isTypewriter);
-    if (isTypewriter) {
-        setTimeout(() => updateTypewriterAndHighlight(true), 50);
-    }
-    performSave();
-}
-typewriterToggle.addEventListener('click', toggleTypewriter);
 
 // ─── Global Search (WASM-accelerated) ───────────────────────────────────────
 let selectedSearchIndex = 0;
@@ -1096,7 +1075,6 @@ function selectSearchResult(index) {
         setTimeout(() => {
             editor.focus();
             editor.setSelectionRange(match.matchIndex, match.matchIndex);
-            updateTypewriterAndHighlight(true);
             updateLineNumbers();
         }, 150);
     }
@@ -1187,7 +1165,6 @@ function selectLocalSearchResult(index) {
     setTimeout(() => {
         editor.focus();
         editor.setSelectionRange(match.matchIndex, match.matchIndex);
-        updateTypewriterAndHighlight(true);
         updateLineNumbers();
     }, 150);
 }
@@ -1267,13 +1244,13 @@ window.addEventListener('keydown', (e) => {
     if (IS_MAC) {
         if (e.metaKey && !e.shiftKey && !e.altKey && !e.ctrlKey) {
             if (primaryKey === 'e') { e.preventDefault(); toggleZen(); }
-            else if (primaryKey === 'j') { e.preventDefault(); toggleTypewriter(); }
+
             else if (primaryKey === 'k') { e.preventDefault(); togglePanic(); }
         }
     } else {
         if (e.altKey && !e.metaKey && !e.shiftKey && !e.ctrlKey) {
             if (primaryKey === 'z') { e.preventDefault(); toggleZen(); }
-            else if (primaryKey === 't') { e.preventDefault(); toggleTypewriter(); }
+
             else if (primaryKey === 'p') { e.preventDefault(); togglePanic(); }
         }
     }
@@ -1319,44 +1296,6 @@ const closeInfo = () => {
 
 infoClose.addEventListener('click', closeInfo);
 infoCloseBtn.addEventListener('click', closeInfo);
-
-// ─── Typewriter & Line Highlight ────────────────────────────────────────────
-
-function updateTypewriterAndHighlight(forceCenter = false) {
-    if (isPreviewMode || (!isTypewriter && forceCenter !== true)) {
-        if (lineHighlight) lineHighlight.style.display = 'none';
-        document.body.classList.remove('typewriter-active');
-        return;
-    }
-
-    const caretPos = editor.selectionStart;
-    const val = editor.value;
-
-    // Use WASM for fast line-at-offset calculation
-    const currentLineNum = wasmLineAtOffset(val, caretPos);
-
-    const lineHeight = 30;
-    const paddingTop = 40;
-
-    if (lineHighlight) {
-        lineHighlight.style.top = `${paddingTop + ((currentLineNum - 1) * lineHeight)}px`;
-        lineHighlight.style.height = `${lineHeight}px`;
-        lineHighlight.style.display = 'block';
-        lineHighlight.style.transform = `translateY(-${editor.scrollTop}px)`;
-
-        if (forceCenter === true) {
-            document.body.classList.add('typewriter-active');
-        }
-    }
-
-    if (isTypewriter || forceCenter === true) {
-        const targetScroll = (currentLineNum - 1) * lineHeight + paddingTop - (editor.clientHeight / 2) + (lineHeight / 2);
-        if (Math.abs(editor.scrollTop - targetScroll) > 1 || forceCenter) {
-            editor.scrollTop = targetScroll;
-        }
-        syncGutterScroll();
-    }
-}
 
 // ─── Wiki Suggestion ────────────────────────────────────────────────────────
 let selectedSuggestionIndex = 0;
@@ -1444,11 +1383,10 @@ function getCaretCoordinates(element, position) {
 let heavyUpdateTimeout;
 function handleEditorInput() {
     updateCurrentTabState();
-    updateTypewriterAndHighlight();
+    updateLineNumbers();
 
     clearTimeout(heavyUpdateTimeout);
     heavyUpdateTimeout = setTimeout(() => {
-        updateLineNumbers();
         updateCounts();
         updateWikiSuggestions();
         performSave();
@@ -1456,10 +1394,6 @@ function handleEditorInput() {
 }
 
 editor.addEventListener('input', handleEditorInput);
-editor.addEventListener('keyup', (e) => {
-    if (e.key.startsWith('Arrow')) updateTypewriterAndHighlight();
-});
-editor.addEventListener('click', () => updateTypewriterAndHighlight());
 
 editor.addEventListener('keydown', (e) => {
     if (wikiSuggestion.style.display === 'block') {
@@ -1607,12 +1541,6 @@ graphClose.onclick = () => {
     graphModal.classList.add('hidden');
     isModalOpen = false;
 };
-
-editor.addEventListener('scroll', () => {
-    if (lineHighlight) {
-        lineHighlight.style.transform = `translateY(-${editor.scrollTop}px)`;
-    }
-});
 
 // ─── Inactivity Timer ───────────────────────────────────────────────────────
 function resetActivity() { lastActivity = Date.now(); }
@@ -1838,6 +1766,58 @@ sidebarToggle.addEventListener('click', () => {
     sidebarToggle.title = isCollapsed ? "Expand Sidebar" : "Collapse Sidebar";
 });
 
+// ─── Mobile Helpers ────────────────────────────────────────────────────────
+function isMobile() {
+    return window.innerWidth <= 640;
+}
+
+// Mobile sidebar drawer
+const mobileSidebarToggle = document.getElementById('mobileSidebarToggle');
+const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+function openMobileSidebar() {
+    sidebar.classList.add('mobile-open');
+    sidebarOverlay.classList.add('active');
+}
+
+function closeMobileSidebar() {
+    sidebar.classList.remove('mobile-open');
+    sidebarOverlay.classList.remove('active');
+}
+
+mobileSidebarToggle.addEventListener('click', () => {
+    if (sidebar.classList.contains('mobile-open')) {
+        closeMobileSidebar();
+    } else {
+        openMobileSidebar();
+    }
+});
+
+sidebarOverlay.addEventListener('click', closeMobileSidebar);
+
+// Toolbar overflow menu
+const toolbarOverflowBtn = document.getElementById('toolbarOverflowBtn');
+const toolbarButtons = document.querySelector('.toolbar-buttons');
+
+toolbarOverflowBtn.addEventListener('click', () => {
+    toolbarButtons.classList.toggle('overflow-open');
+});
+
+// Close overflow when clicking outside
+document.addEventListener('click', (e) => {
+    if (toolbarButtons.classList.contains('overflow-open') &&
+        !toolbarButtons.contains(e.target)) {
+        toolbarButtons.classList.remove('overflow-open');
+    }
+});
+
+// Close mobile sidebar when activating a tab (on mobile)
+const origActivateTab = activateTab;
+window.activateTab = function(id) {
+    origActivateTab(id);
+    if (isMobile()) closeMobileSidebar();
+};
+
 // ─── Tab Key Handling ───────────────────────────────────────────────────────
 editor.addEventListener('keydown', (e) => {
     if (e.key === 'Tab') {
@@ -1853,7 +1833,7 @@ editor.addEventListener('keydown', (e) => {
 // ─── Shortcut Labels ────────────────────────────────────────────────────────
 function updateShortcutLabels() {
     const zenMod = IS_MAC ? '⌘E' : 'Alt+Z';
-    const typewriterMod = IS_MAC ? '⌘J' : 'Alt+T';
+
     const panicMod = IS_MAC ? '⌘K' : 'Alt+P';
     const searchLabel = IS_MAC ? '⌘⇧F' : 'Ctrl+Shift+F';
     const localSearchLabel = IS_MAC ? '⌘F' : 'Ctrl+F';
@@ -1871,7 +1851,6 @@ function updateShortcutLabels() {
 
     document.getElementById('panicBtn').setAttribute('data-title', `Panic Button (${panicMod})`);
     document.getElementById('zenToggle').setAttribute('data-title', `Zen Mode (${zenMod})`);
-    document.getElementById('typewriterToggle').setAttribute('data-title', `Typewriter Scrolling (${typewriterMod})`);
     document.getElementById('searchToggle').setAttribute('data-title', `Global Search (${searchLabel})`);
     document.getElementById('newBtn').setAttribute('data-title', `Start from Scratch (${newMod})`);
     document.getElementById('previewToggle').setAttribute('data-title', `Toggle Preview (${previewMod})`);
@@ -1887,7 +1866,7 @@ function updateShortcutLabels() {
 
     const kbdMap = {
         'kbd-search': searchLabel, 'kbd-local-search': localSearchLabel,
-        'kbd-zen': zenMod, 'kbd-typewriter': typewriterMod, 'kbd-panic': panicMod,
+        'kbd-zen': zenMod, 'kbd-panic': panicMod,
         'kbd-preview': previewMod, 'kbd-graph': graphMod, 'kbd-info': infoMod,
         'kbd-save': saveMod, 'kbd-share': shareMod, 'kbd-lock': lockMod,
         'kbd-theme': themeMod, 'kbd-copy': copyMod, 'kbd-new': newMod, 'kbd-lines': linesMod,
@@ -2266,7 +2245,7 @@ window.moveItem = moveItem;
 window.activateTab = activateTab;
 window.toggleZen = toggleZen;
 window.togglePreview = togglePreview;
-window.toggleTypewriter = toggleTypewriter;
+
 window.encodeToUrl = encodeToUrl;
 window.decodeFromUrl = decodeFromUrl;
 window.loadFromContent = loadFromContent;

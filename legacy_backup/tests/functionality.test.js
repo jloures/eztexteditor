@@ -162,11 +162,7 @@ describe('eztexteditor Functionality', () => {
             expect(global.isPreviewMode).toBe(!initial);
         });
 
-        test('toggleTypewriter changes isTypewriter variable', () => {
-            const initial = global.isTypewriter;
-            global.toggleTypewriter();
-            expect(global.isTypewriter).toBe(!initial);
-        });
+
     });
 
     describe('Movement', () => {

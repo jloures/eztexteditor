@@ -696,27 +696,6 @@
             opacity: 0.3 !important;
         }
 
-        /* --- Typewriter Scrolling --- */
-        .typewriter-active #editor {
-            padding-bottom: 50vh !important;
-        }
-
-        .line-highlight {
-            position: absolute;
-            left: 0;
-            right: 0;
-            background: rgba(59, 130, 246, 0.07);
-            border-top: 1px solid rgba(59, 130, 246, 0.2);
-            border-bottom: 1px solid rgba(59, 130, 246, 0.2);
-            pointer-events: none;
-            z-index: 0;
-            transition: top 0.1s cubic-bezier(0.4, 0, 0.2, 1);
-            display: none;
-        }
-
-        .typewriter-active .line-highlight {
-            display: block;
-        }
 
         /* --- Global Search Modal --- */
         #searchModal .search-item {
@@ -768,41 +747,285 @@
             border-radius: 2px;
             box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.5);
         }
+
+        /* --- Mobile-only / Desktop-only helpers --- */
+        .mobile-only {
+            display: none !important;
+        }
+
+        /* --- Mobile Sidebar Overlay --- */
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 19;
+        }
+
+        .sidebar-overlay.active {
+            display: block;
+        }
+
+        /* ============================================
+           TABLET BREAKPOINT (max-width: 1024px)
+           ============================================ */
+        @media (max-width: 1024px) {
+            .header-bar {
+                padding: 12px 16px;
+            }
+
+            #editor,
+            #preview {
+                padding: 24px;
+            }
+
+            .line-numbers-gutter {
+                padding: 24px 8px 24px 0;
+            }
+
+            #toc-container {
+                width: 180px;
+            }
+        }
+
+        /* ============================================
+           MOBILE BREAKPOINT (max-width: 640px)
+           ============================================ */
+        @media (max-width: 640px) {
+            /* Show mobile-only elements */
+            .mobile-only {
+                display: inline-block !important;
+            }
+
+            /* Header */
+            .header-bar {
+                padding: 10px 12px;
+                gap: 8px;
+            }
+
+            .meta-bar {
+                gap: 8px;
+                font-size: 0.65rem;
+            }
+
+            .toolbar-buttons {
+                gap: 12px;
+            }
+
+            /* Hide secondary toolbar buttons by default on mobile */
+            .toolbar-secondary {
+                display: none !important;
+            }
+
+            /* When overflow menu is open, show secondary buttons */
+            .toolbar-buttons.overflow-open .toolbar-secondary {
+                display: flex !important;
+            }
+
+            /* Overflow open: convert toolbar to a dropdown panel */
+            .toolbar-buttons.overflow-open {
+                position: fixed;
+                top: 0;
+                right: 0;
+                bottom: 0;
+                width: 56px;
+                background: var(--bg-color);
+                border-left: 1px solid var(--border-color);
+                z-index: 55;
+                flex-direction: column;
+                align-items: center;
+                padding: 12px 0;
+                gap: 0;
+                overflow-y: auto;
+            }
+
+            .toolbar-buttons.overflow-open > * {
+                width: 100%;
+                height: 44px;
+                display: flex !important;
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
+                font-size: 1.05rem;
+            }
+
+            .toolbar-buttons.overflow-open #toolbarOverflowBtn {
+                order: -1;
+                border-bottom: 1px solid var(--border-color);
+                margin-bottom: 4px;
+            }
+
+            /* Tooltips: disable on mobile (no hover) */
+            [data-title]::after {
+                display: none;
+            }
+
+            /* Sidebar: off-screen drawer */
+            .sidebar {
+                position: fixed;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                z-index: 20;
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+                width: 280px !important;
+                box-shadow: none;
+            }
+
+            .sidebar.mobile-open {
+                transform: translateX(0);
+                box-shadow: 4px 0 20px rgba(0, 0, 0, 0.5);
+            }
+
+            /* Override collapsed state on mobile — always show full sidebar when open */
+            .sidebar.collapsed.mobile-open {
+                width: 280px !important;
+            }
+
+            .sidebar.collapsed.mobile-open .sidebar-title-text,
+            .sidebar.collapsed.mobile-open .tab-title,
+            .sidebar.collapsed.mobile-open .btn-text,
+            .sidebar.collapsed.mobile-open .tab-actions {
+                display: flex !important;
+            }
+
+            .sidebar.collapsed.mobile-open .tab {
+                justify-content: flex-start;
+                padding: 10px 16px;
+                border-left: 3px solid transparent;
+            }
+
+            .sidebar.collapsed.mobile-open .sidebar-header {
+                justify-content: space-between;
+                padding: 16px;
+            }
+
+            .sidebar.collapsed.mobile-open .sidebar-footer {
+                padding: 16px;
+            }
+
+            .sidebar.collapsed.mobile-open .new-tab-btn {
+                padding: 10px;
+                justify-content: center;
+            }
+
+            .sidebar.collapsed.mobile-open .tab-indent,
+            .sidebar.collapsed.mobile-open .folder-toggle {
+                display: flex;
+            }
+
+            /* Hide desktop sidebar toggle, use mobile one in header */
+            .sidebar #sidebarToggle {
+                display: none;
+            }
+
+            /* Disable resizer on mobile */
+            .resizer {
+                display: none !important;
+            }
+
+            /* Main: full width since sidebar is overlay */
+            main {
+                height: calc(100vh - 52px);
+            }
+
+            /* Editor */
+            #editor,
+            #preview {
+                padding: 16px;
+                font-size: 1rem;
+                line-height: 26px;
+            }
+
+            .line-numbers-gutter {
+                padding: 16px 6px 16px 0;
+                font-size: 1rem;
+                line-height: 26px;
+                width: 45px;
+            }
+
+            /* TOC: stack below content on mobile */
+            #toc-container {
+                float: none;
+                width: 100%;
+                margin: 16px 0 0 0;
+                position: static;
+            }
+
+            /* Modals: full-width on mobile */
+            .modal-overlay > div {
+                max-width: calc(100vw - 24px) !important;
+                padding: 20px !important;
+                margin: 12px;
+            }
+
+            /* Search modals: less top padding on mobile */
+            #searchModal,
+            #localSearchModal {
+                padding-top: 12px !important;
+            }
+
+            /* Graph modal: tighter on mobile */
+            #graphModal .modal-container {
+                width: calc(100vw - 24px);
+                height: 80vh;
+            }
+
+            /* Welcome modal buttons: smaller text */
+            #welcomeModal button {
+                font-size: 0.9rem;
+                padding: 10px 12px;
+            }
+
+            /* Panic mode */
+            .panic-content {
+                margin: 16px auto;
+                padding: 16px;
+            }
+        }
     </style>
 </head>
 
 <body class="overflow-hidden" data-theme="dark">
     <div class="zen-hint">Press <b>Esc</b> to exit Zen Mode</div>
 
-    <header class="flex justify-between items-center px-10 py-6 border-b border-[var(--border-color)] select-none">
-        <div class="flex items-center gap-6 meta-bar">
+    <header class="header-bar flex justify-between items-center px-10 py-6 border-b border-[var(--border-color)] select-none">
+        <div class="flex items-center gap-4 meta-bar">
+            <i id="mobileSidebarToggle" class="fas fa-bars btn-icon mobile-only" data-title="Toggle Sidebar"></i>
             <div id="wordCount">0 WORDS</div>
             <div id="encryptionBadge" class="hidden text-blue-400 font-bold">LOCKED</div>
             <div id="modeBadge" class="text-xs px-2 py-0.5 rounded bg-gray-800 text-gray-300">EDIT</div>
         </div>
 
-        <div class="flex items-center gap-4">
-            <i id="securityBtn" class="fas fa-shield-halved btn-icon" data-title="Security Settings"></i>
-            <i id="panicBtn" class="fas fa-ghost btn-icon text-orange-400" data-title="Panic Button (Alt+P)"></i>
-            <i id="zenToggle" class="fas fa-expand btn-icon" data-title="Zen Mode (Alt+Z)"></i>
-            <i id="typewriterToggle" class="fas fa-arrows-up-down btn-icon" data-title="Typewriter Scrolling"></i>
+        <div class="toolbar-buttons flex items-center gap-4">
+            <!-- Primary buttons: always visible -->
             <i id="searchToggle" class="fas fa-search btn-icon" data-title="Global Search (Cmd+K)"></i>
-            <i id="newBtn" class="fas fa-plus btn-icon" data-title="Start from Scratch"></i>
             <i id="previewToggle" class="fas fa-eye btn-icon" data-title="Toggle Preview (Markdown)"></i>
-            <i id="graphBtn" class="fas fa-project-diagram btn-icon" data-title="Graph View (Alt+G)"></i>
             <i id="lockBtn" class="fas fa-unlock btn-icon" data-title="Symmetric Password Encryption"></i>
             <i id="shareBtn" class="fas fa-share-nodes btn-icon" data-title="Copy Share Link"></i>
-            <i id="infoBtn" class="fas fa-circle-info btn-icon" data-title="Shortcuts & Info"></i>
-            <i id="linesToggle" class="fas fa-list-ol btn-icon" data-title="Toggle Line Numbers"></i>
-            <i id="themeToggle" class="fas fa-sun btn-icon" data-title="Toggle Dark Mode"></i>
             <i id="browserSaveBtn" class="fas fa-hard-drive btn-icon" data-title="Save to Browser"></i>
             <i id="downloadBtn" class="fas fa-download btn-icon" data-title="Download contents"></i>
-            <i id="copyBtn" class="fas fa-copy btn-icon" data-title="Copy Raw Text"></i>
-            <i id="clearBtn" class="fas fa-trash-alt btn-icon text-red-400" data-title="Clear All"></i>
+            <!-- Secondary buttons: hidden in overflow menu on mobile -->
+            <i id="securityBtn" class="fas fa-shield-halved btn-icon toolbar-secondary" data-title="Security Settings"></i>
+            <i id="panicBtn" class="fas fa-ghost btn-icon text-orange-400 toolbar-secondary" data-title="Panic Button (Alt+P)"></i>
+            <i id="zenToggle" class="fas fa-expand btn-icon toolbar-secondary" data-title="Zen Mode (Alt+Z)"></i>
+
+            <i id="newBtn" class="fas fa-plus btn-icon toolbar-secondary" data-title="Start from Scratch"></i>
+            <i id="graphBtn" class="fas fa-project-diagram btn-icon toolbar-secondary" data-title="Graph View (Alt+G)"></i>
+            <i id="infoBtn" class="fas fa-circle-info btn-icon toolbar-secondary" data-title="Shortcuts & Info"></i>
+            <i id="linesToggle" class="fas fa-list-ol btn-icon toolbar-secondary" data-title="Toggle Line Numbers"></i>
+            <i id="themeToggle" class="fas fa-sun btn-icon toolbar-secondary" data-title="Toggle Dark Mode"></i>
+            <i id="copyBtn" class="fas fa-copy btn-icon toolbar-secondary" data-title="Copy Raw Text"></i>
+            <i id="clearBtn" class="fas fa-trash-alt btn-icon text-red-400 toolbar-secondary" data-title="Clear All"></i>
+            <!-- Overflow toggle: only visible on mobile -->
+            <i id="toolbarOverflowBtn" class="fas fa-ellipsis-vertical btn-icon mobile-only" data-title="More Actions"></i>
         </div>
     </header>
 
     <main>
+        <!-- Sidebar Overlay (mobile) -->
+        <div id="sidebarOverlay" class="sidebar-overlay"></div>
         <!-- Sidebar -->
         <div id="sidebar" class="sidebar">
             <div class="sidebar-header">
@@ -830,7 +1053,7 @@
         <!-- Editor Area -->
         <div id="editor-container">
             <div id="line-numbers" class="line-numbers-gutter"></div>
-            <div id="line-highlight" class="line-highlight"></div>
+
             <textarea id="editor" placeholder="Start typing..." spellcheck="false"></textarea>
             <div id="wikiSuggestion"></div>
             <div id="preview-wrapper" class="flex-1" style="display: none; height: 100%; overflow-y: auto;">
@@ -1015,11 +1238,7 @@
                                 <kbd id="kbd-zen"
                                     class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs font-mono">⌘E</kbd>
                             </div>
-                            <div class="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
-                                <span class="text-gray-400">Typewriter Mode</span>
-                                <kbd id="kbd-typewriter"
-                                    class="px-2 py-1 bg-black rounded border border-gray-700 text-gray-300 text-xs font-mono">⌘J</kbd>
-                            </div>
+
                             <div class="flex justify-between items-center text-sm border-b border-gray-800 pb-2">
                                 <span class="text-gray-400">Panic Mode</span>
                                 <kbd id="kbd-panic"
