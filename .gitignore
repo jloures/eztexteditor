@@ -31,4 +31,3 @@ build/
 
 # Rust/WASM build artifacts
 wasm-core/target/
-wasm-core/pkg/
