@@ -27,11 +27,11 @@ export default defineConfig({
         ...(singleFile ? [viteSingleFile()] : []),
         ...(isExtension ? [extensionCopyPlugin()] : []),
     ],
+    base: isExtension ? './' : process.env.BASE_PATH || '/',
     build: {
         target: 'esnext',
         outDir: singleFile ? 'dist-single' : isExtension ? 'dist-extension' : 'dist',
         assetsInlineLimit: singleFile ? Infinity : 4096,
-        ...(isExtension ? { base: './' } : {}),
     },
     server: {
         port: 3000,
