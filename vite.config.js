@@ -1,6 +1,5 @@
 import { defineConfig } from 'vite';
 import wasm from 'vite-plugin-wasm';
-import topLevelAwait from 'vite-plugin-top-level-await';
 import { viteSingleFile } from 'vite-plugin-singlefile';
 import { resolve } from 'path';
 import { copyFileSync, mkdirSync, cpSync } from 'fs';
@@ -23,7 +22,6 @@ const extensionCopyPlugin = () => ({
 export default defineConfig({
     plugins: [
         wasm(),
-        topLevelAwait(),
         ...(singleFile ? [viteSingleFile()] : []),
         ...(isExtension ? [extensionCopyPlugin()] : []),
     ],
