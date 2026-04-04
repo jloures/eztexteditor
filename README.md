@@ -1,6 +1,8 @@
 # EzTextEditor
 
-A **secure, client-side, multi-tab Markdown editor** that stores 100% of your data in the URL. accessible anywhere, no database required.
+A **secure, client-side, multi-tab Markdown editor** that stores 100% of your data in the URL. Accessible anywhere, no database required.
+
+**[eztexteditor.com](https://eztexteditor.com)**
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
@@ -48,12 +50,6 @@ open index.html
 ## 🚀 Deployment
 
 This app can be deployed to any static site hosting service.
-
-### GitHub Pages
-1. Go to your repository **Settings** > **Pages**.
-2. Under **Build and deployment**, select **Deploy from a branch**.
-3. Select the `main` branch and `/ (root)` folder.
-4. Click **Save**.
 
 ### Netlify
 1. Connect your repository to [Netlify](https://www.netlify.com/).
