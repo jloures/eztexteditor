@@ -50,6 +50,7 @@ let encryptionKey = null;
 let isPreviewMode = false;
 let isModalOpen = false;
 let saveTimeout;
+let lastSavedHash = null;
 let isResizing = false;
 let sidebarWidth = 260;
 let lastActivity = Date.now();
@@ -794,7 +795,11 @@ async function performSave() {
                 } else {
                     hash = await encodeToUrl(dataToSave);
                 }
-                window.location.hash = hash;
+                // Skip if hash unchanged
+                if (hash === lastSavedHash) return;
+                lastSavedHash = hash;
+                // replaceState avoids history spam and is faster than setting location.hash
+                history.replaceState(null, '', '#' + hash);
             }
 
             saveIndicator.classList.remove('opacity-0');
@@ -2306,6 +2311,9 @@ window.decodeFromUrl = decodeFromUrl;
 window.loadFromContent = loadFromContent;
 window.renderTabs = renderTabs;
 window.performSave = performSave;
+window.togglePanic = togglePanic;
+window.closeSearch = closeSearch;
+window.closeLocalSearch = closeLocalSearch;
 window.deriveKey = deriveKey;
 window.insertAfter = insertAfter;
 window.generateId = generateId;

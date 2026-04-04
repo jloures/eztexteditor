@@ -101,8 +101,13 @@
             stroke-width: 1px;
         }
 
-        body {
+        html, body {
+            margin: 0;
+            padding: 0;
             background-color: var(--bg-color);
+        }
+
+        body {
             color: var(--text-color);
             font-family: 'Inter', sans-serif;
             transition: background-color 0.3s ease, color 0.3s ease;
@@ -113,7 +118,7 @@
             display: flex;
             height: calc(100vh - 85px);
             /* Adjusted for header */
-            width: 100vw;
+            width: 100%;
             overflow: hidden;
         }
 
@@ -483,6 +488,9 @@
         }
 
         .meta-bar {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
             color: var(--meta-color);
             font-family: 'JetBrains Mono', monospace;
             font-size: 0.75rem;
@@ -777,9 +785,9 @@
            MOBILE BREAKPOINT (max-width: 640px)
            ============================================ */
         @media (max-width: 640px) {
-            /* Show mobile-only elements */
+            /* Show mobile-only elements (flex to match btn-icon centering) */
             .mobile-only {
-                display: inline-block !important;
+                display: flex !important;
             }
 
             /* Header */
@@ -789,22 +797,28 @@
             }
 
             .meta-bar {
+                flex: 0 0 auto;
                 gap: 4px;
                 font-size: 0.65rem;
+                white-space: nowrap;
+            }
+
+            .toolbar-buttons {
+                flex: 1 1 0%;
+                justify-content: flex-end;
+                min-width: 0;
+                gap: 0;
             }
 
             /* Mobile tap targets: minimum 44x44px */
+            /* !important needed to override FontAwesome's display: inline-block */
             .btn-icon {
-                display: flex;
+                display: flex !important;
                 align-items: center;
                 justify-content: center;
                 min-width: 44px;
                 min-height: 44px;
                 font-size: 1.1rem;
-            }
-
-            .toolbar-buttons {
-                gap: 0;
             }
 
             /* Hide secondary toolbar buttons by default on mobile */
@@ -828,6 +842,7 @@
                 border-left: 1px solid var(--border-color);
                 z-index: 55;
                 flex-direction: column;
+                justify-content: flex-start;
                 align-items: center;
                 padding: 12px 0;
                 gap: 0;
@@ -997,7 +1012,7 @@
     <div class="zen-hint">Press <b>Esc</b> to exit Zen Mode</div>
 
     <header class="header-bar flex justify-between items-center px-2 py-1.5 sm:px-10 sm:py-6 border-b border-[var(--border-color)] select-none">
-        <div class="flex items-center gap-1 sm:gap-4 meta-bar">
+        <div class="meta-bar">
             <i id="mobileSidebarToggle" class="fas fa-bars btn-icon mobile-only" data-title="Toggle Sidebar"></i>
             <div id="wordCount">0 WORDS</div>
             <div id="encryptionBadge" class="hidden text-blue-400 font-bold">LOCKED</div>
@@ -1005,13 +1020,14 @@
         </div>
 
         <div class="toolbar-buttons flex items-center gap-0 sm:gap-4">
-            <!-- Primary buttons: always visible -->
+            <!-- Primary buttons: always visible on mobile -->
             <i id="searchToggle" class="fas fa-search btn-icon" data-title="Global Search (Cmd+K)"></i>
             <i id="previewToggle" class="fas fa-eye btn-icon" data-title="Toggle Preview (Markdown)"></i>
-            <i id="lockBtn" class="fas fa-unlock btn-icon" data-title="Symmetric Password Encryption"></i>
             <i id="shareBtn" class="fas fa-share-nodes btn-icon" data-title="Copy Share Link"></i>
-            <i id="browserSaveBtn" class="fas fa-hard-drive btn-icon" data-title="Save to Browser"></i>
-            <i id="downloadBtn" class="fas fa-download btn-icon" data-title="Download contents"></i>
+            <!-- Secondary buttons: in overflow menu on mobile -->
+            <i id="lockBtn" class="fas fa-unlock btn-icon toolbar-secondary" data-title="Symmetric Password Encryption"></i>
+            <i id="browserSaveBtn" class="fas fa-hard-drive btn-icon toolbar-secondary" data-title="Save to Browser"></i>
+            <i id="downloadBtn" class="fas fa-download btn-icon toolbar-secondary" data-title="Download contents"></i>
             <!-- Secondary buttons: hidden in overflow menu on mobile -->
             <i id="securityBtn" class="fas fa-shield-halved btn-icon toolbar-secondary" data-title="Security Settings"></i>
             <i id="panicBtn" class="fas fa-ghost btn-icon text-orange-400 toolbar-secondary" data-title="Panic Button (Alt+P)"></i>
@@ -1153,7 +1169,8 @@
                 <i class="fas fa-globe text-gray-400"></i>
                 <input type="text" id="searchInput"
                     class="bg-transparent border-none outline-none text-white flex-1 text-lg"
-                    placeholder="Search all notes... (Esc to close)">
+                    placeholder="Search all notes...">
+                <i class="fas fa-times text-gray-400 btn-icon" onclick="window.closeSearch()" style="opacity:0.6;font-size:1.1rem"></i>
             </div>
             <div id="searchResults" class="max-h-[60vh] overflow-y-auto space-y-2 pr-2">
                 <!-- Results injected here -->
@@ -1172,7 +1189,8 @@
                 <i class="fas fa-file-alt text-gray-400"></i>
                 <input type="text" id="localSearchInput"
                     class="bg-transparent border-none outline-none text-white flex-1 text-lg"
-                    placeholder="Search in this note... (Esc to close)">
+                    placeholder="Search in this note...">
+                <i class="fas fa-times text-gray-400 btn-icon" onclick="window.closeLocalSearch()" style="opacity:0.6;font-size:1.1rem"></i>
             </div>
             <div id="localSearchResults" class="max-h-[60vh] overflow-y-auto space-y-2 pr-2">
                 <!-- Results injected here -->
@@ -1465,6 +1483,7 @@
                 </div>
             </div>
             <p class="mt-8 text-xs text-gray-400 text-center">Press Alt + P to exit workspace</p>
+            <button id="panicExitBtn" class="mt-4 px-6 py-3 bg-blue-600 text-white rounded text-sm mobile-only" onclick="window.togglePanic()">Exit Workspace</button>
         </div>
     </div>
 
