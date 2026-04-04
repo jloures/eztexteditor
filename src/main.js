@@ -2218,7 +2218,7 @@ async function init() {
     await initWasm();
 
     // Mermaid Init
-    mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' });
+    mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'strict' });
 
     if (localStorage.getItem('minimal_editor_theme') === 'light') {
         document.body.setAttribute('data-theme', 'light');
